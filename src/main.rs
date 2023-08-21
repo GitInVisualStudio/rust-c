@@ -6,10 +6,9 @@ use crate::lexer::tokens::Token;
 
 fn main() {
     let mut lexer = Lexer::new("code.c").expect("Was not able to open file");
-    while let token = lexer.next() {
-        if token == Token::EOF {
-            break;
-        }
-        println!("{:?}", token);
+    let result = lexer.expect(Token::ERR);
+    match result {
+        Ok(value) => println!("Value: {:?}", value),
+        Err(e) => println!("{}", e)
     }
 }

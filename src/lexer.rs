@@ -1,17 +1,43 @@
+use core::fmt;
 use std::{fs::File, io::{Error,  Read}};
-use regex::{Regex};
+use regex::Regex;
 
 pub mod tokens;
 
 use tokens::{Token, TOKEN_PATTERN};
 
+#[derive(Debug, Clone)]
+pub struct LexerError {
+    msg: String,
+    line: usize,
+    index: usize
+}
+
 pub struct Lexer {
     content: String,
     index: usize,
+    last_index: usize,
     patterns: Vec<(Token, Regex)>
 }
 
 impl Lexer {
+
+    fn error<T>(&self, string: String) -> Result<T, LexerError> {
+        let mut line_breaks= 0;
+        let mut index = 0;
+        for (i, c) in self.content.bytes().enumerate() {
+            if i == self.index {
+                break;
+            }
+            index += 1;
+            if c == b'\n' {
+                index = 0;
+                line_breaks += 1;
+            }
+        }
+        Err(LexerError { msg: string, line: line_breaks, index: index})
+    }
+
     pub fn new(file_path: &str) -> Result<Lexer, Error> {
         let mut file = File::open(file_path)?;
         let mut content = String::new();
@@ -23,7 +49,7 @@ impl Lexer {
             .map(|(index, pattern)| {
                 (Token::from(index), Regex::new(pattern).unwrap())
             }).collect();
-        Ok(Lexer {content: content, index: 0, patterns: patterns})
+        Ok(Lexer {content: content, index: 0, last_index: 0, patterns: patterns})
         
     }
 
@@ -34,16 +60,48 @@ impl Lexer {
         if self.index == self.content.len() {
             return Token::EOF;
         }
-        let (first_token, first_match) = self.patterns
+
+        let result = self.patterns
             .iter()
             .map(|(token, regex)| (token, regex.find_at(&self.content, self.index)))
-            .filter(|(_, m)| m.is_some())
-            .map(|(token, m)| (token, m.unwrap()))
-            .min_by(|(_, a), (_, b)| a.start().cmp(&b.start())).unwrap();
-        if first_match.start() != self.index {
-            return Token::ERR;
+            .filter_map(|(token, x)| match x {
+                Some(m) if m.start() == self.index => Some((token, m.end())),
+                Some(_) => None,
+                None => None
+            })
+            .next();
+        if let Some((token, end)) = result {
+            self.last_index = self.index;
+            self.index = end;
+            return token.clone();    
         }
-        self.index = first_match.end();
-        first_token.clone()
+        Token::ERR
+    }
+
+    pub fn expect(&mut self, token: Token) -> Result<&str, LexerError> {
+        let next_token = self.next();
+        if next_token != token {
+            return self.error(format!("Unexpected token: {:?} expected: {:?}", next_token, token))
+        }
+        Ok(self.last_string())
+    }
+
+    pub fn last_string(&self) -> &str {
+        &self.content[self.last_index..self.index]
+    }
+
+    pub fn peek(&mut self) -> Token {
+        let last_index = self.last_index;
+        let result = self.next();
+        // reset the index again
+        self.index = self.last_index;
+        self.last_index = last_index;
+        result
+    }
+}
+
+impl fmt::Display for LexerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Error: '{}' at {}:{}", self.msg, self.line, self.index)
     }
 }
