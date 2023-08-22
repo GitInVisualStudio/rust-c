@@ -22,8 +22,8 @@ pub struct Lexer {
 
 impl Lexer {
 
-    fn error<T>(&self, string: String) -> Result<T, LexerError> {
-        let mut line_breaks= 0;
+    pub fn error<T>(&self, string: String) -> Result<T, LexerError> {
+        let mut line_breaks= 1;
         let mut index = 0;
         for (i, c) in self.content.bytes().enumerate() {
             if i == self.index {
@@ -38,8 +38,8 @@ impl Lexer {
         Err(LexerError { msg: string, line: line_breaks, index: index})
     }
 
-    pub fn new(file_path: &str) -> Result<Lexer, Error> {
-        let mut file = File::open(file_path)?;
+    pub fn new(file_name: &str) -> Result<Lexer, Error> {
+        let mut file = File::open(file_name)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
@@ -58,6 +58,7 @@ impl Lexer {
             self.index += 1;
         }
         if self.index == self.content.len() {
+            self.last_index = self.index;
             return Token::EOF;
         }
 
@@ -82,6 +83,16 @@ impl Lexer {
         let next_token = self.next();
         if next_token != token {
             return self.error(format!("Unexpected token: {:?} expected: {:?}", next_token, token))
+        }
+        Ok(self.last_string())
+    }
+
+    pub fn expect_tokens(&mut self, tokens: &[Token]) -> Result<&str, LexerError> {
+        for token in tokens {
+            let next_token = self.next();
+            if next_token != *token {
+                return self.error(format!("Unexpected token: {:?} expected: {:?}", next_token, token))
+            }
         }
         Ok(self.last_string())
     }

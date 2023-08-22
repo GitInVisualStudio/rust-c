@@ -1,14 +1,18 @@
 pub mod lexer;
+pub mod parser;
 
-use lexer::Lexer;
-
-use crate::lexer::tokens::Token;
+use parser::{ASTNode, generator::Generator};
 
 fn main() {
-    let mut lexer = Lexer::new("code.c").expect("Was not able to open file");
-    let result = lexer.expect(Token::ERR);
+    let result = parser::parse("code.c");
     match result {
-        Ok(value) => println!("Value: {:?}", value),
-        Err(e) => println!("{}", e)
+        Ok(value) => {
+            let gen = Generator::new("output.s");
+            println!("Program: {:?}", value);
+            if let Ok(mut gen) = gen {
+                let _ = value.generate(&mut gen);
+            }
+        }
+        Err(e) => println!("{:?}", e),
     }
 }

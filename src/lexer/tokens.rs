@@ -10,6 +10,11 @@ pub enum Token {
     RETURN,
     INTLITERAL,
     IDENT,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    ASSIGN,
     EOF,
     ERR,
 }
@@ -27,7 +32,12 @@ impl Token {
             7 => Token::RETURN,
             8 => Token::INTLITERAL,
             9 => Token::IDENT,
-            10 => Token::EOF,
+            10 => Token::ADD,
+            11 => Token::SUB, 
+            12 => Token::MUL,
+            13 => Token::DIV,
+            14 => Token::ASSIGN,
+            15 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -43,5 +53,10 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "\\)",
     "return ",
     "[0-9]+",
-    "\\w+"
+    "\\w+",
+    "\\+",
+    "\\-",
+    "\\*",
+    "\\/",
+    "\\="
 ];
