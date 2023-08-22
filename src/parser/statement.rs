@@ -1,26 +1,28 @@
 use std::io::Error;
+use std::rc::Rc;
 
 use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::expression::Expression;
 use super::generator::Generator;
-use super::scope::Scope;
+use super::scope::{Scope, IScope};
+use super::variable::Variable;
 
 
 #[derive(Debug)]
 pub enum Statement {
     Return {
-        expression: Option<Box<dyn ASTNode>>
+        expression: Option<Rc<dyn ASTNode>>
     },
     VariableDeclaration {
-        name: String,
-        expression: Option<Box<dyn ASTNode>>
+        variable: Rc<Variable>,
+        expression: Option<Rc<dyn ASTNode>>
     }
 }
 
 impl ASTNode for Statement {
-    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> where Self: Sized {
         let result = match lexer.peek() {
             Token::INT => Self::parse_variable_declaration(lexer, scope),
             Token::RETURN => Self::parse_return(lexer, scope),
@@ -40,31 +42,41 @@ impl ASTNode for Statement {
                 Ok(0)
             },
             // will care about that later
-            Statement::VariableDeclaration { name, expression } => todo!(),
+            Statement::VariableDeclaration { variable, expression } => todo!(),
         }
     }
 
 }
 
 impl Statement {
-    fn parse_variable_declaration(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
+    fn parse_variable_declaration(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         lexer.expect(Token::INT)?;
+        
         let name = lexer.expect(Token::IDENT)?.to_string();
-        match lexer.peek() {
+        let var = Variable::new(&name, super::variable::DataType::INT);
+        let var = Rc::new(var);
+
+        let contains: Option<&Variable> = scope.get(&name);
+        if let Some(_) = contains {
+            return lexer.error(format!("Variable {} already declared in scope!", name));
+        }
+        scope.add(var.clone());
+        
+        Ok(Rc::new(match lexer.peek() {
             Token::ASSIGN => {
                 lexer.next();
                 let expression = Expression::parse(lexer, scope)?;
-                Ok (Statement::VariableDeclaration { name: name, expression: Some(Box::new(expression)) })
+                Statement::VariableDeclaration { variable: var, expression: Some(expression) }
             }
-            _ => Ok (Statement::VariableDeclaration { name: name, expression: None })
-        }
+            _ => Statement::VariableDeclaration { variable: var, expression: None }
+        }))
     }
 
-    fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
+    fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         lexer.expect(Token::RETURN)?;
         let expression = Expression::parse(lexer, scope)?;
-        Ok(Statement::Return {
-            expression: Some(Box::new(expression))
-        })
+        Ok(Rc::new(Statement::Return {
+            expression: Some(expression)
+        }))
     }
 }

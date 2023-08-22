@@ -1,3 +1,3 @@
 int main(){
-    return (25 + 3 - 2 * 5) / 2 - 1;
+    return (2 + 3) * 5;
 }

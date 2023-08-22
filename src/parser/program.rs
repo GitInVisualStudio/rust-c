@@ -1,4 +1,5 @@
 use std::io::Error;
+use std::rc::Rc;
 
 use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
@@ -9,17 +10,17 @@ use super::scope::Scope;
 
 #[derive(Debug)]
 pub struct Program {
-    functions: Vec<Box<dyn ASTNode>>
+    functions: Vec<Rc<dyn ASTNode>>
 }
 
 impl ASTNode for Program {
-    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
-        let mut funcs: Vec<Box<dyn ASTNode>> = Vec::new();
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> where Self: Sized {
+        let mut funcs: Vec<Rc<dyn ASTNode>> = Vec::new();
         while lexer.peek() == Token::INT {
-            funcs.push(Box::new(Function::parse(lexer, scope)?))
+            funcs.push(Function::parse(lexer, scope)?)
         }
         lexer.expect(Token::EOF)?;
-        Ok(Program { functions: funcs })
+        Ok(Rc::new(Program { functions: funcs }))
     }
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {

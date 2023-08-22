@@ -19,7 +19,7 @@ impl Generator {
     }
 
     pub fn mov(&mut self, value: i32, register: &str) -> Result<usize, Error> {
-        self.emit(format!("\tmovl\t${}, %{}\n", value, register))
+        self.emit(format!("\tmov \t${}, %{}\n", value, register))
     }
 
     pub fn push(&mut self, register: &str) -> Result<usize, Error> {

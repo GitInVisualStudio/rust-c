@@ -1,39 +1,74 @@
+use std::rc::Rc;
+
 use super::{function::Function, variable::Variable};
 
 
 #[derive(Debug)]
 pub struct Scope {
-    functions: Vec<Function>,
-    variables: Vec<Variable>
+    functions: Vec<Vec<Rc<Function>>>,
+    variables: Vec<Vec<Rc<Variable>>>,
+    stack_offset: usize
 }
 
 pub trait IScope<T> {
     fn get(&self, name: &str) -> Option<&T>;
-    fn add(&mut self, value: T);
+    fn add(&mut self, value: Rc<T>);
 }
 
 impl IScope<Variable> for Scope {
     fn get(&self, name: &str) -> Option<&Variable> {
-        self.variables.iter().find(|x| x.name() == name)
+        for vars in &self.variables {
+            if let Some(x) = vars.iter().find(|x| x.name() == name) {
+                return Some(x)
+            }
+        }
+        None        
     }
 
-    fn add(&mut self, value: Variable) {
-        self.variables.push(value)
+    fn add(&mut self, value: Rc<Variable>) {
+        let vars = self.variables.last_mut();
+        match vars {
+            Some(x) => {
+                self.stack_offset += value.size();
+                x.push(value)
+            },
+            None => panic!("was not able to add variable into scope!")
+        }
     }
 }
 
 impl IScope<Function> for Scope {
     fn get(&self, name: &str) -> Option<&Function> {
-        self.functions.iter().find(|x| x.name() == name)
+        for funcs in &self.functions {
+            if let Some(x) = funcs.iter().find(|x| x.name() == name) {
+                return Some(x)
+            }
+        }
+        None        
     }
 
-    fn add(&mut self, value: Function) {
-        self.functions.push(value)
+    fn add(&mut self, value: Rc<Function>) {
+        let funcs = self.functions.last_mut();
+        match funcs {
+            Some(x) => x.push(value),
+            None => panic!("was not able to add function into scope!")
+        }
     }
 }
 
 impl Scope {
     pub fn new() -> Scope {
-        Scope { functions: Vec::new(), variables: Vec::new() }
+        Scope { functions: Vec::new(), variables: Vec::new(), stack_offset: 0 }
+    }
+
+    pub fn push(&mut self) {
+        self.functions.push(Vec::new());
+        self.variables.push(Vec::new());
+    }
+
+    pub fn pop(&mut self) {
+        self.functions.pop();
+        self.variables.pop();
+        self.stack_offset = 0;
     }
 }

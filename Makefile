@@ -4,7 +4,7 @@ build:
 	cargo build
 run:
 	cargo run
-run-asm:  run
+asm: run
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
 test:

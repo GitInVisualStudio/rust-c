@@ -18,4 +18,10 @@ impl Variable {
     pub fn name(&self) -> &String {
         &self.name
     }
+
+    pub fn size(&self) -> usize {
+        match self.data_type {
+            DataType::INT => 4,
+        }
+    }
 }

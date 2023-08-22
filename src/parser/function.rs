@@ -1,31 +1,41 @@
 use std::io::Error;
+use std::rc::Rc;
 
 use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::generator::Generator;
-use super::scope::Scope;
+use super::scope::{Scope, IScope};
 use super::statement::Statement;
 
 
 #[derive(Debug)]
 pub struct Function {
-    statements: Vec<Statement>,
+    statements: Vec<Rc<Statement>>,
     name: String
 }
 
 impl ASTNode for Function {
-    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
-        let mut statements: Vec<Statement> = Vec::new();
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> where Self: Sized {
+        let mut statements: Vec<Rc<Statement>> = Vec::new();
         lexer.expect(Token::INT)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
+        
+        // check if function already exists
+        let contains: Option<&Function> = scope.get(&name);
+        if let Some(_) = contains {
+            return lexer.error(format!("Function {} already exists!", name))
+        }
+
         lexer.expect_tokens(&[Token::LPAREN, Token::RPAREN, Token::LCURL])?;
         while lexer.peek() != Token::RCURL {
-            let statement = Statement::parse(lexer, scope)?;
-            statements.push(statement);
+            statements.push(Statement::parse(lexer, scope)?);
         }
         lexer.expect(Token::RCURL)?;
-        Ok(Function {statements: statements, name: name})
+        let result = Rc::new(Function {statements: statements, name: name});
+
+        scope.add(result.clone());
+        Ok(result)
     }
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
