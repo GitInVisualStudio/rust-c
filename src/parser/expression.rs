@@ -4,6 +4,7 @@ use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::generator::Generator;
+use super::scope::Scope;
 
 
 #[derive(Debug)]
@@ -33,8 +34,8 @@ pub enum Expression {
 
 impl ASTNode for Expression {
 
-    fn parse(lexer: &mut Lexer) -> Result<Self, LexerError> where Self: Sized {
-        Expression::parse_expressions(lexer)
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
+        Expression::parse_expressions(lexer, scope)
     }
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
@@ -69,43 +70,43 @@ impl ASTNode for Expression {
 }
 
 impl Expression {
-    fn parse_literal(lexer: &mut Lexer) -> Result<Self, LexerError> {
+    fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
         let value: i32 = lexer.expect(Token::INTLITERAL)?.trim_start().parse().expect("was not able to parse int literal");
         Ok(Self::Literal(value))
     }
 
-    fn parse_unary(lexer: &mut Lexer) -> Result<Self, LexerError> {
+    fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
         lexer.next();
-        let e = Self::parse_factor(lexer)?;
+        let e = Self::parse_factor(lexer, scope)?;
         Ok(Self::Unary { expression: Box::new(e), operation: UnaryOps::NEG })
     }
 
-    fn parse_factor(lexer: &mut Lexer) -> Result<Self, LexerError> {
+    fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
         match lexer.peek() {
-            Token::SUB => Self::parse_unary(lexer),
+            Token::SUB => Self::parse_unary(lexer, scope),
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
-                let result = Self::parse_expressions(lexer);
+                let result = Self::parse_expressions(lexer, scope);
                 lexer.expect(Token::RPAREN)?;    
                 result
             },
             // only literal left to parse
-            _ => Self::parse_literal(lexer)
+            _ => Self::parse_literal(lexer, scope)
         }
     }
 
-    fn parse_binary(lexer: &mut Lexer, operations: &Vec<Token>, index: usize) -> Result<Self, LexerError>{
+    fn parse_binary(lexer: &mut Lexer, scope: &mut Scope, operations: &Vec<Token>, index: usize) -> Result<Self, LexerError>{
         let op = operations.get(index);
         // if we are at the end of the binary operations we parse a factor
         if op.is_none() {
-            return Self::parse_factor(lexer)
+            return Self::parse_factor(lexer, scope)
         }
         let op = op.unwrap();
-        let mut expression = Self::parse_binary(lexer, operations, index + 1)?;
+        let mut expression = Self::parse_binary(lexer, scope, operations, index + 1)?;
         while lexer.peek() == *op {
             lexer.next();
             let first_operand = Box::new(expression);
-            let second_operand = Box::new(Self::parse_binary(lexer, operations, index + 1)?);
+            let second_operand = Box::new(Self::parse_binary(lexer, scope, operations, index + 1)?);
             expression = match *op {
                 Token::ADD => Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::ADD },
                 Token::SUB => Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::SUB },
@@ -118,9 +119,9 @@ impl Expression {
         Ok(expression)
     }
 
-    fn parse_expressions(lexer: &mut Lexer) -> Result<Self, LexerError> {
+    fn parse_expressions(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> {
         let operations = vec![Token::ADD, Token::SUB, Token::MUL, Token::DIV];
-        Self::parse_binary(lexer, &operations, 0)
+        Self::parse_binary(lexer, scope, &operations, 0)
     }
 
 }

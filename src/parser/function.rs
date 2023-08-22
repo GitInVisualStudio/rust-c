@@ -4,6 +4,7 @@ use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::generator::Generator;
+use super::scope::Scope;
 use super::statement::Statement;
 
 
@@ -14,13 +15,13 @@ pub struct Function {
 }
 
 impl ASTNode for Function {
-    fn parse(lexer: &mut Lexer) -> Result<Self, LexerError> where Self: Sized {
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
         let mut statements: Vec<Statement> = Vec::new();
         lexer.expect(Token::INT)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
         lexer.expect_tokens(&[Token::LPAREN, Token::RPAREN, Token::LCURL])?;
         while lexer.peek() != Token::RCURL {
-            let statement = Statement::parse(lexer)?;
+            let statement = Statement::parse(lexer, scope)?;
             statements.push(statement);
         }
         lexer.expect(Token::RCURL)?;
@@ -34,5 +35,11 @@ impl ASTNode for Function {
             child.generate(gen)?;
         }
         Ok(0)
+    }
+}
+
+impl Function {
+    pub fn name(&self) -> &String {
+        &self.name
     }
 }

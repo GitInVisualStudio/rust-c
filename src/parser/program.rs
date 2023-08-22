@@ -5,6 +5,7 @@ use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::function::Function;
 use super::generator::Generator;
+use super::scope::Scope;
 
 #[derive(Debug)]
 pub struct Program {
@@ -12,10 +13,10 @@ pub struct Program {
 }
 
 impl ASTNode for Program {
-    fn parse(lexer: &mut Lexer) -> Result<Self, LexerError> where Self: Sized {
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized {
         let mut funcs: Vec<Box<dyn ASTNode>> = Vec::new();
         while lexer.peek() == Token::INT {
-            funcs.push(Box::new(Function::parse(lexer)?))
+            funcs.push(Box::new(Function::parse(lexer, scope)?))
         }
         lexer.expect(Token::EOF)?;
         Ok(Program { functions: funcs })

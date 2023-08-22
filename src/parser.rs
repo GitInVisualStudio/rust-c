@@ -3,13 +3,15 @@ pub mod expression;
 pub mod function;
 pub mod statement;
 pub mod program;
+pub mod scope;
+pub mod variable;
 
 use std::{fmt::Debug, io::Error};
 use crate::lexer::{Lexer, LexerError};
 
-use self::{generator::Generator, program::Program};
+use self::{generator::Generator, program::Program, scope::Scope};
 pub trait ASTNode: Debug {
-    fn parse(lexer: &mut Lexer) -> Result<Self, LexerError> where Self: Sized;
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Self, LexerError> where Self: Sized;
     /**
      * i dont like the result type here, i have to change that later on!
      */
@@ -19,5 +21,6 @@ pub trait ASTNode: Debug {
 pub fn parse(file_name: &str) -> Result<Program, LexerError> {
     // i have to propagate the error message correctly!
     let mut lexer = Lexer::new(file_name).expect("was not able to open file!");
-    Program::parse(&mut lexer)
+    let mut scope = Scope::new();
+    Program::parse(&mut lexer, &mut scope)
 }
