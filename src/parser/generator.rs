@@ -29,4 +29,16 @@ impl Generator {
     pub fn pop(&mut self, register: &str) -> Result<usize, Error> {
         self.emit(format!("\tpop \t%{}\n", register))
     }
+
+    pub fn push_stack(&mut self, size: usize) -> Result<usize, Error> {
+        self.emit(format!("\tpush\t%rbp\n\tmovq\t%rsp, %rbp\n\tsub \t${}, %rsp\n", size))
+    }
+
+    pub fn pop_stack(&mut self) -> Result<usize, Error> {
+        self.emit("\tmov\t\t%rbp, %rsp\n\tpop\t\t%rbp\n".to_string())
+    }
+
+    pub fn emit_cmp(&mut self, comparator: &str) -> Result<usize, Error> {
+        self.emit(format!("\tcmp \t%eax, %ecx\n\tmov \t$0, %eax\n\t{}\t%al\n", comparator))
+    }
 }

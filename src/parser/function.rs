@@ -12,7 +12,8 @@ use super::statement::Statement;
 #[derive(Debug)]
 pub struct Function {
     statements: Vec<Rc<Statement>>,
-    name: String
+    name: String,
+    stack_size: usize
 }
 
 impl ASTNode for Function {
@@ -26,14 +27,17 @@ impl ASTNode for Function {
         if let Some(_) = contains {
             return lexer.error(format!("Function {} already exists!", name))
         }
-
         lexer.expect_tokens(&[Token::LPAREN, Token::RPAREN, Token::LCURL])?;
+
+        scope.push();
         while lexer.peek() != Token::RCURL {
             statements.push(Statement::parse(lexer, scope)?);
         }
-        lexer.expect(Token::RCURL)?;
-        let result = Rc::new(Function {statements: statements, name: name});
 
+        lexer.expect(Token::RCURL)?;
+        let result = Rc::new(Function {statements: statements, name: name, stack_size: scope.stack_size()});
+        
+        scope.pop();
         scope.add(result.clone());
         Ok(result)
     }
@@ -41,6 +45,7 @@ impl ASTNode for Function {
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
         //right now we don't have to worry about stack size
         gen.emit(format!("{}:\n",self.name))?;
+        gen.push_stack(self.stack_size)?;
         for child in &self.statements {
             child.generate(gen)?;
         }

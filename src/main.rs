@@ -15,4 +15,11 @@ fn main() {
         }
         Err(e) => println!("{:?}", e),
     }
+    // use lexer::tokens::Token;
+    // let lexer = lexer::Lexer::new("code.c");
+    // if let Ok(mut lexer) = lexer {
+    //     while lexer.peek() != Token::EOF {
+    //         println!("{:?}",lexer.next());
+    //     }
+    // }
 }

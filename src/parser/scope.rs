@@ -71,4 +71,8 @@ impl Scope {
         self.variables.pop();
         self.stack_offset = 0;
     }
+
+    pub fn stack_size(&self) -> usize {
+        self.stack_offset
+    }
 }

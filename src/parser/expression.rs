@@ -5,7 +5,8 @@ use crate::lexer::{Lexer, LexerError};
 use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::generator::Generator;
-use super::scope::Scope;
+use super::scope::{Scope, IScope};
+use super::variable::Variable;
 
 
 #[derive(Debug)]
@@ -13,7 +14,15 @@ pub enum BinaryOps {
     ADD,
     SUB,
     MUL,
-    DIV
+    DIV,
+    AND,
+    OR,
+    EQ,
+    NE,
+    LT,
+    GT,
+    LE,
+    GE
 }
 
 #[derive(Debug)]
@@ -25,6 +34,7 @@ pub enum UnaryOps {
 #[derive(Debug)]
 pub enum Expression {
     Literal(i32),
+    NamedVariable{stack_offset: usize},
     Unary { expression: Rc<Expression>, operation: UnaryOps },
     BinaryExpression {
         first: Rc<Expression>,
@@ -61,9 +71,21 @@ impl ASTNode for Expression {
                     BinaryOps::DIV => gen.emit("    mov     %eax, %ebx
     mov     %ecx, %eax
     cdq
-    idivl   %ebx
+    idiv    %ebx
 ".to_string()),
+                    BinaryOps::AND => todo!(),
+                    BinaryOps::OR => todo!(),
+                    BinaryOps::EQ => gen.emit_cmp("sete"),
+                    BinaryOps::NE => gen.emit_cmp("setne"),
+                    BinaryOps::LT => gen.emit_cmp("setl"),
+                    BinaryOps::GT => gen.emit_cmp("setg"),
+                    BinaryOps::LE => gen.emit_cmp("setle"),
+                    BinaryOps::GE => gen.emit_cmp("setge"),
                 }?;
+                Ok(0)
+            },
+            Expression::NamedVariable { stack_offset } => {
+                gen.emit_ins("mov ", format!("-{}(%rbp)", stack_offset).as_str(), "%eax")?;
                 Ok(0)
             },
         }
@@ -72,8 +94,21 @@ impl ASTNode for Expression {
 
 impl Expression {
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        let value: i32 = lexer.expect(Token::INTLITERAL)?.trim_start().parse().expect("was not able to parse int literal");
-        Ok(Rc::new(Self::Literal(value)))
+        match lexer.peek() {
+            Token::INTLITERAL => {
+                let value: i32 = lexer.expect(Token::INTLITERAL)?.trim_start().parse().expect("was not able to parse int literal");
+                Ok(Rc::new(Self::Literal(value)))
+            }
+            Token::IDENT => {
+                let name = lexer.expect(Token::IDENT)?.trim_start().to_string();
+                let contains: Option<&Variable> = scope.get(&name);
+                if let None = contains {
+                    return lexer.error(format!("Variable {} not found!", name))
+                }
+                Ok(Rc::new(Self::NamedVariable { stack_offset: contains.as_ref().unwrap().offset() }))
+            }
+            token => panic!("No literal for {:?}", token)
+        }
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
@@ -96,7 +131,7 @@ impl Expression {
         }
     }
 
-    fn parse_binary(lexer: &mut Lexer, scope: &mut Scope, operations: &[Token; 4], index: usize) -> Result<Rc<Self>, LexerError>{
+    fn parse_binary(lexer: &mut Lexer, scope: &mut Scope, operations: &[Vec<Token>], index: usize) -> Result<Rc<Self>, LexerError>{
         let op = operations.get(index);
         // if we are at the end of the binary operations we parse a factor
         if op.is_none() {
@@ -104,15 +139,24 @@ impl Expression {
         }
         let op = op.unwrap();
         let mut expression = Self::parse_binary(lexer, scope, operations, index + 1)?;
-        while lexer.peek() == *op {
+
+        while let Some(operand) = op.iter().find(|x| lexer.peek() == **x) {
             lexer.next();
             let first_operand = expression;
             let second_operand = Self::parse_binary(lexer, scope, operations, index + 1)?;
-            expression = match *op {
+            expression = match *operand {
                 Token::ADD => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::ADD }),
                 Token::SUB => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::SUB }),
                 Token::MUL => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::MUL }),
                 Token::DIV => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::DIV }),
+                Token::AND => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::AND }),
+                Token::OR => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::OR }),
+                Token::EQ => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::EQ }),
+                Token::NE => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::NE }),
+                Token::LT => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::LT }),
+                Token::GT => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::GT }),
+                Token::LE => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::LE }),
+                Token::GE => Rc::new(Self::BinaryExpression{ first: first_operand, second: second_operand, operation: BinaryOps::GE }),
                 // this should not happen!
                 _ => panic!("Unknown operation")
             }
@@ -121,7 +165,14 @@ impl Expression {
     }
 
     fn parse_expressions(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        let operations = [Token::ADD, Token::SUB, Token::MUL, Token::DIV];
+        let operations = [
+            vec![Token::OR],
+            vec![Token::AND],
+            vec![Token::EQ, Token::NE],
+            vec![Token::GT, Token::GE, Token::LT, Token::LE],
+            vec![Token::ADD, Token::SUB],
+            vec![Token::MUL, Token::DIV]
+        ];
         Self::parse_binary(lexer, scope, &operations, 0)
     }
 

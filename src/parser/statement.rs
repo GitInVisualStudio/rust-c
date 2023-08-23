@@ -38,11 +38,17 @@ impl ASTNode for Statement {
                 if expression.is_some() {
                     expression.as_ref().unwrap().generate(gen)?;
                 }
+                gen.pop_stack()?;
                 gen.emit("\tret\n".to_string())?;
                 Ok(0)
             },
-            // will care about that later
-            Statement::VariableDeclaration { variable, expression } => todo!(),
+            Statement::VariableDeclaration { variable, expression } => {
+                if expression.is_some() {
+                    expression.as_ref().unwrap().generate(gen)?;
+                    gen.emit_ins("mov ", "%eax", format!("-{}(%rbp)", variable.offset()).as_str())?;
+                }
+                Ok(0)
+            },
         }
     }
 
@@ -53,7 +59,7 @@ impl Statement {
         lexer.expect(Token::INT)?;
         
         let name = lexer.expect(Token::IDENT)?.to_string();
-        let var = Variable::new(&name, super::variable::DataType::INT);
+        let var = Variable::new(&name, super::variable::DataType::INT, scope.stack_size());
         let var = Rc::new(var);
 
         let contains: Option<&Variable> = scope.get(&name);
