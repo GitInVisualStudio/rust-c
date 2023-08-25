@@ -5,6 +5,8 @@ pub mod statement;
 pub mod program;
 pub mod scope;
 pub mod variable;
+pub mod if_statement;
+pub mod statement_list;
 
 use std::{fmt::Debug, io::Error, rc::Rc};
 use crate::lexer::{Lexer, LexerError};

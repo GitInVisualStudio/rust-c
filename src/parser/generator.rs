@@ -1,5 +1,6 @@
-use std::{io::{BufWriter, Error, Write}, fs::File};
+use std::{io::{BufWriter, Error, Write}, fs::File, sync::atomic::AtomicIsize};
 
+pub static CLAUSE_COUNT: AtomicIsize = AtomicIsize::new(0);
 pub struct Generator {
     writer: BufWriter<File>
 }
@@ -40,5 +41,14 @@ impl Generator {
 
     pub fn emit_cmp(&mut self, comparator: &str) -> Result<usize, Error> {
         self.emit(format!("\tcmp \t%eax, %ecx\n\tmov \t$0, %eax\n\t{}\t%al\n", comparator))
+    }
+    
+    pub fn emit_label(&mut self, label: &str) -> Result<usize, Error> {
+        self.emit(format!("{}:\n", label))
+    }
+
+    pub fn generate_clause_names() -> (String, String) {
+        let clause_count = CLAUSE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        (format!("_clause{}", clause_count), format!("_end{}", clause_count))
     }
 }

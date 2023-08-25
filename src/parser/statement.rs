@@ -6,6 +6,7 @@ use crate::lexer::tokens::Token;
 use super::ASTNode;
 use super::expression::Expression;
 use super::generator::Generator;
+use super::if_statement::IfStatement;
 use super::scope::{Scope, IScope};
 use super::variable::Variable;
 
@@ -18,7 +19,8 @@ pub enum Statement {
     VariableDeclaration {
         variable: Rc<Variable>,
         expression: Option<Rc<dyn ASTNode>>
-    }
+    },
+    IfStatement(Rc<IfStatement>)
 }
 
 impl ASTNode for Statement {
@@ -26,10 +28,15 @@ impl ASTNode for Statement {
         let result = match lexer.peek() {
             Token::INT => Self::parse_variable_declaration(lexer, scope),
             Token::RETURN => Self::parse_return(lexer, scope),
-            _ => lexer.error("Cannot parse statement".to_string())
-        };
+            Token::IF => {
+                let value = IfStatement::parse(lexer, scope)?;
+                let value = Rc::new(Statement::IfStatement(value));
+                return Ok(value)
+            }
+            x => lexer.error(format!("Cannot parse statement: {:?}", x))
+        }?;
         lexer.expect(Token::SEMIC)?;
-        result
+        Ok(result)
     }
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
@@ -49,6 +56,7 @@ impl ASTNode for Statement {
                 }
                 Ok(0)
             },
+            Statement::IfStatement(if_statement) => if_statement.generate(gen),
         }
     }
 
@@ -64,7 +72,7 @@ impl Statement {
 
         let contains: Option<&Variable> = scope.get(&name);
         if let Some(_) = contains {
-            return lexer.error(format!("Variable {} already declared in scope!", name));
+            return lexer.error(format!("Variable {} already declared in scope!", name))
         }
         scope.add(var.clone());
         

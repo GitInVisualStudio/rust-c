@@ -8,8 +8,7 @@ use super::generator::Generator;
 use super::scope::{Scope, IScope};
 use super::variable::Variable;
 
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinaryOps {
     ADD,
     SUB,
@@ -54,11 +53,26 @@ impl ASTNode for Expression {
             Expression::Literal(value) => {
                 gen.mov(*value, "eax")
             },
-            Expression::Unary { expression, operation } => todo!(),
+            Expression::Unary { expression, operation } => {
+                expression.generate(gen)?;
+                match operation {
+                    UnaryOps::NEG => gen.emit("\tneg\t\t%eax\n".to_string()),
+                    UnaryOps::LOGNEG => {
+                        gen.emit_ins("cmp ", "$0", "%eax")?;
+                        gen.mov(0, "eax")?;
+                        gen.emit("\tsete\t%al\n".to_string())
+                    },
+                }
+            },
             Expression::BinaryExpression { first, second, operation } => {
                 first.generate(gen)?;
                 // push first expression
                 gen.push("rax")?;
+
+                if *operation == BinaryOps::AND || *operation == BinaryOps::OR {
+                    return self.generate_and_or(operation, second, gen);
+                }
+
                 second.generate(gen)?;
                 // pop first expression into rcx
                 gen.pop("rcx")?;
@@ -73,14 +87,13 @@ impl ASTNode for Expression {
     cdq
     idiv    %ebx
 ".to_string()),
-                    BinaryOps::AND => todo!(),
-                    BinaryOps::OR => todo!(),
                     BinaryOps::EQ => gen.emit_cmp("sete"),
                     BinaryOps::NE => gen.emit_cmp("setne"),
                     BinaryOps::LT => gen.emit_cmp("setl"),
                     BinaryOps::GT => gen.emit_cmp("setg"),
                     BinaryOps::LE => gen.emit_cmp("setle"),
                     BinaryOps::GE => gen.emit_cmp("setge"),
+                    _ => Ok(0)
                 }?;
                 Ok(0)
             },
@@ -93,6 +106,32 @@ impl ASTNode for Expression {
 }
 
 impl Expression {
+
+    fn generate_and_or(&self, operation: &BinaryOps, second: &Rc<Expression>, gen: &mut Generator) -> Result<usize, Error> {
+        let (second_expression_label, end_label) = Generator::generate_clause_names();
+        match operation {
+            BinaryOps::AND => {
+                gen.emit_ins("cmp ", "$0", "%eax")?;
+                gen.emit(format!("\tjne\t\t{}\n", second_expression_label))?;
+                gen.emit(format!("\tjmp\t\t{}\n", end_label))
+            },
+            BinaryOps::OR => {
+                gen.emit_ins("cmp ", "$0", "%eax")?;
+                gen.emit(format!("\tje\t\t{}\n", second_expression_label))?;
+                gen.mov(1, "eax")?;
+                gen.emit(format!("\tjmp\t\t{}\n", end_label))
+            },
+            _ => panic!("Wrong operation for boolean comparision!")
+        }?;
+        gen.emit_label(&second_expression_label)?;
+        second.generate(gen)?;
+
+        gen.emit_ins("cmp ", "$0", "%eax")?;
+        gen.mov(1, "eax")?;
+        gen.emit("\tsetne\t%al\n".to_string())?;
+        gen.emit_label(&end_label)
+    }
+
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
             Token::INTLITERAL => {
@@ -112,14 +151,18 @@ impl Expression {
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        lexer.next();
+        let op = match lexer.next() {
+            Token::SUB => UnaryOps::NEG,
+            Token::LOGNEG => UnaryOps::LOGNEG,
+            _ => panic!("Cannot parse binary operation!")
+        };
         let e = Self::parse_factor(lexer, scope)?;
-        Ok(Rc::new(Self::Unary { expression: e, operation: UnaryOps::NEG }))
+        Ok(Rc::new(Self::Unary { expression: e, operation: op}))
     }
 
     fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::SUB => Self::parse_unary(lexer, scope),
+            Token::SUB | Token::LOGNEG => Self::parse_unary(lexer, scope),
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
                 let result = Self::parse_expressions(lexer, scope);
