@@ -2,12 +2,13 @@ use std::rc::Rc;
 
 use crate::lexer::tokens::Token;
 
-use super::{expression::Expression, statement_list::StatementList, ASTNode, generator::Generator};
+use super::{expression::Expression, generator::Generator, statement_list::StatementList, ASTNode};
 
 #[derive(Debug)]
 pub struct WhileStatement {
     condition: Rc<Expression>,
     body: Rc<StatementList>,
+    label_index: usize,
 }
 
 impl ASTNode for WhileStatement {
@@ -22,14 +23,18 @@ impl ASTNode for WhileStatement {
         let condition = Expression::parse(lexer, scope)?;
         lexer.expect(Token::RPAREN)?;
         let body = StatementList::parse(lexer, scope)?;
-        Ok(Rc::new(WhileStatement { condition, body }))
+        Ok(Rc::new(WhileStatement {
+            condition,
+            body,
+            label_index: Generator::next_label_index(),
+        }))
     }
 
     fn generate(&self, gen: &mut super::generator::Generator) -> Result<usize, std::io::Error> {
-        let (condition, end) = Generator::generate_clause_names();
+        let (condition, end, _) = Generator::generate_label_names(self.label_index);
         gen.emit_label(&condition)?;
         self.condition.generate(gen)?;
-        
+
         gen.emit_ins("cmp ", "$0", "%eax")?;
         gen.emit(format!("\tje\t\t{}\n", end))?;
 
@@ -37,7 +42,7 @@ impl ASTNode for WhileStatement {
 
         gen.emit(format!("\tjmp\t\t{}\n", condition))?;
         gen.emit_label(&end)?;
-        
+
         Ok(0)
     }
 }

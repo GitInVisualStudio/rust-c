@@ -1,10 +1,11 @@
 use std::{
     fs::File,
     io::{BufWriter, Error, Write},
-    sync::atomic::AtomicIsize,
+    sync::atomic::AtomicUsize,
 };
 
-pub static CLAUSE_COUNT: AtomicIsize = AtomicIsize::new(0);
+pub static CLAUSE_COUNT: AtomicUsize = AtomicUsize::new(0);
+pub static LABEL_COUNT: AtomicUsize = AtomicUsize::new(0);
 pub struct Generator {
     writer: BufWriter<File>,
 }
@@ -72,12 +73,19 @@ impl Generator {
         )
     }
 
-    pub fn generate_label_names() -> (String, String, String) {
-        let clause_count = CLAUSE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    pub fn generate_label_names(label_index: usize) -> (String, String, String) {
         (
-            format!("_clause{}", clause_count),
-            format!("_expression{}", clause_count),
-            format!("_end{}", clause_count),
+            format!("_label{}", label_index),
+            format!("_labelend{}", label_index),
+            format!("_expression{}", label_index),
         )
+    }
+
+    pub fn next_label_index() -> usize {
+        LABEL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn label_index() -> usize {
+        LABEL_COUNT.load(std::sync::atomic::Ordering::Relaxed)
     }
 }

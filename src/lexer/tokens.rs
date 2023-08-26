@@ -27,6 +27,8 @@ pub enum Token {
     WHILE,
     FOR,
     ELSE,
+    BREAK,
+    CONTINUE,
     IDENT,
     EOF,
     ERR,
@@ -62,8 +64,10 @@ impl Token {
             24 => Token::WHILE, 
             25 => Token::FOR,
             26 => Token::ELSE,
-            27 => Token::IDENT,
-            28 => Token::EOF,
+            27 => Token::BREAK,
+            28 => Token::CONTINUE,
+            29 => Token::IDENT,
+            30 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -97,5 +101,7 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "while",
     "for",
     "else",
+    "break",
+    "continue",
     "\\w+",
 ];

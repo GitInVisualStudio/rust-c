@@ -27,6 +27,12 @@ pub enum Statement {
     IfStatement(Rc<IfStatement>),
     ForStatement(Rc<ForStatement>),
     WhileStatement(Rc<WhileStatement>),
+    Continue {
+        label_index: usize,
+    },
+    Break {
+        label_index: usize,
+    },
     Empty,
 }
 
@@ -37,6 +43,18 @@ impl ASTNode for Statement {
     {
         let result = match lexer.peek() {
             Token::INT => Self::parse_variable_declaration(lexer, scope),
+            Token::CONTINUE => {
+                lexer.next();
+                Ok(Rc::new(Self::Continue {
+                    label_index: Generator::label_index(),
+                }))
+            }
+            Token::BREAK => {
+                lexer.next();
+                Ok(Rc::new(Self::Break {
+                    label_index: Generator::label_index(),
+                }))
+            }
             Token::RETURN => Self::parse_return(lexer, scope),
             Token::IF => {
                 let statement = IfStatement::parse(lexer, scope)?;
@@ -92,6 +110,16 @@ impl ASTNode for Statement {
             Statement::ForStatement(statement) => statement.generate(gen),
             Statement::WhileStatement(while_statement) => while_statement.generate(gen),
             Statement::Empty => Ok(0),
+            Statement::Continue { label_index } => {
+                let (condition, _, _) = Generator::generate_label_names(*label_index);
+                gen.emit(format!("\tjmp \t{}\n", condition))?;
+                Ok(0)
+            }
+            Statement::Break { label_index } => {
+                let (_, end, _) = Generator::generate_label_names(*label_index);
+                gen.emit(format!("\tjmp \t{}\n", end))?;
+                Ok(0)
+            }
         }
     }
 }

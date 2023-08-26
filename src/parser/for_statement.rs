@@ -13,6 +13,7 @@ pub struct ForStatement {
     condition: Rc<Expression>,
     post: Rc<Expression>,
     body: Rc<StatementList>,
+    label_index: usize,
 }
 
 impl ASTNode for ForStatement {
@@ -42,11 +43,12 @@ impl ASTNode for ForStatement {
             condition: condition,
             post: post,
             body: body,
+            label_index: Generator::next_label_index(),
         }))
     }
 
     fn generate(&self, gen: &mut super::generator::Generator) -> Result<usize, std::io::Error> {
-        let (body, post, end) = Generator::generate_label_names();
+        let (body, end, post) = Generator::generate_label_names(self.label_index);
         self.init.generate(gen)?;
 
         gen.emit_label(&body)?;
