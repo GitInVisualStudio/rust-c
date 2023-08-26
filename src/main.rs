@@ -1,7 +1,7 @@
 pub mod lexer;
 pub mod parser;
 
-use parser::{ASTNode, generator::Generator};
+use parser::{generator::Generator, ASTNode};
 
 fn main() {
     let result = parser::parse("code.c");

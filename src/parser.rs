@@ -1,20 +1,24 @@
-pub mod generator;
 pub mod expression;
 pub mod function;
-pub mod statement;
+pub mod generator;
+pub mod if_statement;
 pub mod program;
 pub mod scope;
-pub mod variable;
-pub mod if_statement;
+pub mod statement;
 pub mod statement_list;
+pub mod variable;
+pub mod for_statement;
+pub mod while_statement;
 
-use std::{fmt::Debug, io::Error, rc::Rc};
 use crate::lexer::{Lexer, LexerError};
+use std::{fmt::Debug, io::Error, rc::Rc};
 
 use self::{generator::Generator, program::Program, scope::Scope};
 
-pub trait ASTNode: Debug{
-    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> where Self: Sized;
+pub trait ASTNode: Debug {
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError>
+    where
+        Self: Sized;
     /**
      * i dont like the result type here, i have to change that later on!
      */

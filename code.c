@@ -1,7 +1,7 @@
-int main(){
-    int a = 5;
-    if (a < 7) {
-        return 2;
+int main() {
+    int a = 0;
+    while (a < 100) {
+        a = a + 1;
     }
-    return 7;
+    return a;
 }

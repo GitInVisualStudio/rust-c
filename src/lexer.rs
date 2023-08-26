@@ -1,6 +1,9 @@
 use core::fmt;
-use std::{fs::File, io::{Error,  Read}};
 use regex::Regex;
+use std::{
+    fs::File,
+    io::{Error, Read},
+};
 
 pub mod tokens;
 
@@ -10,20 +13,19 @@ use tokens::{Token, TOKEN_PATTERN};
 pub struct LexerError {
     msg: String,
     line: usize,
-    index: usize
+    index: usize,
 }
 
 pub struct Lexer {
     content: String,
     index: usize,
     last_index: usize,
-    patterns: Vec<(Token, Regex)>
+    patterns: Vec<(Token, Regex)>,
 }
 
 impl Lexer {
-
     pub fn error<T>(&self, string: String) -> Result<T, LexerError> {
-        let mut line_breaks= 1;
+        let mut line_breaks = 1;
         let mut index = 0;
         for (i, c) in self.content.bytes().enumerate() {
             if i == self.index {
@@ -35,7 +37,11 @@ impl Lexer {
                 line_breaks += 1;
             }
         }
-        Err(LexerError { msg: string, line: line_breaks, index: index})
+        Err(LexerError {
+            msg: string,
+            line: line_breaks,
+            index: index,
+        })
     }
 
     pub fn new(file_name: &str) -> Result<Lexer, Error> {
@@ -46,15 +52,20 @@ impl Lexer {
         let patterns: Vec<(Token, Regex)> = TOKEN_PATTERN
             .iter()
             .enumerate()
-            .map(|(index, pattern)| {
-                (Token::from(index), Regex::new(pattern).unwrap())
-            }).collect();
-        Ok(Lexer {content: content, index: 0, last_index: 0, patterns: patterns})
-        
+            .map(|(index, pattern)| (Token::from(index), Regex::new(pattern).unwrap()))
+            .collect();
+        Ok(Lexer {
+            content: content,
+            index: 0,
+            last_index: 0,
+            patterns: patterns,
+        })
     }
 
     pub fn next(&mut self) -> Token {
-        while self.index < self.content.len() && self.content.as_bytes()[self.index].is_ascii_whitespace() {
+        while self.index < self.content.len()
+            && self.content.as_bytes()[self.index].is_ascii_whitespace()
+        {
             self.index += 1;
         }
         if self.index == self.content.len() {
@@ -62,19 +73,20 @@ impl Lexer {
             return Token::EOF;
         }
 
-        let result = self.patterns
+        let result = self
+            .patterns
             .iter()
             .map(|(token, regex)| (token, regex.find_at(&self.content, self.index)))
             .filter_map(|(token, x)| match x {
                 Some(m) if m.start() == self.index => Some((token, m.end())),
                 Some(_) => None,
-                None => None
+                None => None,
             })
             .next();
         if let Some((token, end)) = result {
             self.last_index = self.index;
             self.index = end;
-            return token.clone();    
+            return token.clone();
         }
         Token::ERR
     }
@@ -82,7 +94,10 @@ impl Lexer {
     pub fn expect(&mut self, token: Token) -> Result<&str, LexerError> {
         let next_token = self.next();
         if next_token != token {
-            return self.error(format!("Unexpected token: {:?} expected: {:?}", next_token, token))
+            return self.error(format!(
+                "Unexpected token: {:?} expected: {:?}",
+                next_token, token
+            ));
         }
         Ok(self.last_string())
     }
@@ -91,7 +106,10 @@ impl Lexer {
         for token in tokens {
             let next_token = self.next();
             if next_token != *token {
-                return self.error(format!("Unexpected token: {:?} expected: {:?}", next_token, token))
+                return self.error(format!(
+                    "Unexpected token: {:?} expected: {:?}",
+                    next_token, token
+                ));
             }
         }
         Ok(self.last_string())

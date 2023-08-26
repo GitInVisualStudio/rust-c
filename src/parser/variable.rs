@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub enum DataType {
     INT,
@@ -8,12 +7,16 @@ pub enum DataType {
 pub struct Variable {
     name: String,
     data_type: DataType,
-    offset: usize
+    offset: usize,
 }
 
 impl Variable {
     pub fn new(name: &str, data_type: DataType, offset: usize) -> Variable {
-        Variable { name: name.to_owned(), data_type: data_type, offset: offset }
+        Variable {
+            name: name.to_owned(),
+            data_type: data_type,
+            offset: offset,
+        }
     }
 
     pub fn name(&self) -> &String {
