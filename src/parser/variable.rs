@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     INT,
 }
@@ -30,6 +30,10 @@ impl Variable {
     }
 
     pub fn offset(&self) -> usize {
-        self.offset
+        self.offset + 4
+    }
+
+    pub fn data_type(&self) -> DataType {
+        self.data_type.clone()
     }
 }

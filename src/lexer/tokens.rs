@@ -29,6 +29,8 @@ pub enum Token {
     ELSE,
     BREAK,
     CONTINUE,
+    COMMA,
+    MOD,
     IDENT,
     EOF,
     ERR,
@@ -66,8 +68,10 @@ impl Token {
             26 => Token::ELSE,
             27 => Token::BREAK,
             28 => Token::CONTINUE,
-            29 => Token::IDENT,
-            30 => Token::EOF,
+            29 => Token::COMMA,
+            30 => Token::MOD,
+            31 => Token::IDENT,
+            32 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -103,5 +107,7 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "else",
     "break",
     "continue",
+    "\\,",
+    "\\%",
     "\\w+",
 ];

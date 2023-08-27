@@ -9,6 +9,7 @@ pub mod statement_list;
 pub mod variable;
 pub mod for_statement;
 pub mod while_statement;
+pub mod function_call;
 
 use crate::lexer::{Lexer, LexerError};
 use std::{fmt::Debug, io::Error, rc::Rc};

@@ -45,13 +45,13 @@ impl Generator {
 
     pub fn push_stack(&mut self, size: usize) -> Result<usize, Error> {
         self.emit(format!(
-            "\tpush\t%rbp\n\tmovq\t%rsp, %rbp\n\tsub \t${}, %rsp\n",
-            size
+            "\tpush\t%rbp\n\tmov \t%rsp, %rbp\n\tsub \t${}, %rsp\n",
+            (size / 16 + 1) * 16
         ))
     }
 
     pub fn pop_stack(&mut self) -> Result<usize, Error> {
-        self.emit("\tmov\t\t%rbp, %rsp\n\tpop\t\t%rbp\n".to_string())
+        self.emit("\tleave\n".to_string())
     }
 
     pub fn emit_cmp(&mut self, comparator: &str) -> Result<usize, Error> {
@@ -87,5 +87,10 @@ impl Generator {
 
     pub fn label_index() -> usize {
         LABEL_COUNT.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn get_register(index: usize) -> &'static str {
+        const REGISTER: [&str; 6] = ["%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"];
+        &REGISTER[index]
     }
 }

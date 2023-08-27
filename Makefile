@@ -10,3 +10,7 @@ asm: run
 test:
 	gcc -o  $(OUTPUTFILE) code.c
 	./$(OUTPUTFILE)
+cmp:
+	gcc -o  $(OUTPUTFILE) output.s
+	./$(OUTPUTFILE)
+	

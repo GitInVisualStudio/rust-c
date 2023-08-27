@@ -72,7 +72,7 @@ impl Scope {
     pub fn pop(&mut self) {
         self.functions.pop();
         self.variables.pop();
-        if self.functions.len() == 0 {
+        if self.functions.len() == 1 {
             self.stack_offset = 0;
         }
     }
