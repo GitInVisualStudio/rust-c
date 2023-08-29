@@ -7,7 +7,7 @@ use super::{
     function::Function,
     scope::{IScope, Scope},
     variable::DataType,
-    ASTNode, generator::Generator,
+    ASTNode, generator::{Generator, register::Reg},
 };
 
 #[derive(Debug)]
@@ -18,8 +18,8 @@ pub struct FunctionCall {
 
 impl ASTNode for FunctionCall {
     fn parse(
-        lexer: &mut crate::lexer::Lexer,
-        scope: &mut super::scope::Scope,
+        _: &mut crate::lexer::Lexer,
+        _: &mut super::scope::Scope,
     ) -> Result<Rc<Self>, crate::lexer::LexerError>
     where
         Self: Sized,
@@ -31,10 +31,24 @@ impl ASTNode for FunctionCall {
         // store parameter in registers
         for (index, parameter) in self.parameter.iter().enumerate() {
             parameter.generate(gen)?;
-            gen.emit_ins("mov ", "%eax", Generator::get_register(index))?;
+            gen.mov(Reg::current(), Reg::get_parameter_index(index))?;
         }
-        gen.emit(format!("\tcall \t{}\n", self.name))?;
-        Ok(0)
+        
+        Reg::set_size(8);
+        let prev = Reg::current();
+        while Reg::current() != Reg::R10 {
+            gen.emit_sins("push", Reg::pop())?;
+        }
+        gen.emit_sins("push", Reg::current())?;
+
+        gen.call(&self.name)?;
+
+        Reg::set_size(8);
+        while Reg::current() != prev {
+            gen.emit_sins("pop ", Reg::push())?;
+        }
+        gen.emit_sins("pop ", Reg::current())?;
+        gen.mov(Reg::RAX, Reg::current())
     }
 }
 

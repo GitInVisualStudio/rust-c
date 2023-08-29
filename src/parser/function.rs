@@ -1,6 +1,7 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::generator::register::Reg;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
@@ -50,7 +51,7 @@ impl ASTNode for Function {
             });
             scope.pop();
             scope.add(result.clone());
-            return Ok(result)
+            return Ok(result);
         }
 
         let statements = StatementList::parse(lexer, scope)?;
@@ -71,14 +72,20 @@ impl ASTNode for Function {
         if self.statements.is_none() {
             return Ok(0);
         }
-        gen.emit(format!("{}:\n", self.name))?;
+        gen.emit(&format!("{}:\n", self.name))?;
         gen.push_stack(self.stack_size)?;
 
         //push parameter onto the local stack
         for (index, parameter) in self.parameter.iter().enumerate() {
-            gen.emit(format!("\tmov \t{}, -{}(%rbp)\n", Generator::get_register(index), parameter.offset()))?;
+            Reg::set_size(parameter.data_type().size());
+            gen.mov(
+                Reg::get_parameter_index(index),
+                Reg::STACK {
+                    offset: parameter.offset(),
+                },
+            )?;
         }
-        
+
         self.statements.as_ref().unwrap().generate(gen)?;
         Ok(0)
     }
@@ -97,7 +104,10 @@ impl Function {
 
         let contains: Option<&Variable> = scope.get(&name);
         if let Some(_) = contains {
-            return lexer.error(format!("Parameter with name {} already declared in scope!", name));
+            return lexer.error(format!(
+                "Parameter with name {} already declared in scope!",
+                name
+            ));
         }
         scope.add(var.clone());
 

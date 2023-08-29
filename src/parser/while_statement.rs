@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::lexer::tokens::Token;
 
-use super::{expression::Expression, generator::Generator, statement_list::StatementList, ASTNode};
+use super::{expression::Expression, generator::{Generator, register::Reg}, statement_list::StatementList, ASTNode};
 
 #[derive(Debug)]
 pub struct WhileStatement {
@@ -35,12 +35,12 @@ impl ASTNode for WhileStatement {
         gen.emit_label(&condition)?;
         self.condition.generate(gen)?;
 
-        gen.emit_ins("cmp ", "$0", "%eax")?;
-        gen.emit(format!("\tje\t\t{}\n", end))?;
+        gen.cmp(Reg::IMMEDIATE(0), Reg::current())?;
+        gen.emit(&format!("\tje\t\t{}\n", end))?;
 
         self.body.generate(gen)?;
 
-        gen.emit(format!("\tjmp\t\t{}\n", condition))?;
+        gen.emit(&format!("\tjmp\t\t{}\n", condition))?;
         gen.emit_label(&end)?;
 
         Ok(0)

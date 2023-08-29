@@ -28,7 +28,7 @@ impl ASTNode for Program {
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
         gen.emit(
-            "
+            &"
     .text
     .globl	main
     .type	main, @function

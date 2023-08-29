@@ -31,6 +31,7 @@ pub enum Token {
     CONTINUE,
     COMMA,
     MOD,
+    CHAR,
     IDENT,
     EOF,
     ERR,
@@ -70,8 +71,9 @@ impl Token {
             28 => Token::CONTINUE,
             29 => Token::COMMA,
             30 => Token::MOD,
-            31 => Token::IDENT,
-            32 => Token::EOF,
+            31 => Token::CHAR,
+            32 => Token::IDENT,
+            33 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -109,5 +111,6 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "continue",
     "\\,",
     "\\%",
+    "char",
     "\\w+",
 ];

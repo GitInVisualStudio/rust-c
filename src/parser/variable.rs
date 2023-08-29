@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     INT,
+    CHAR,
 }
 
 #[derive(Debug)]
@@ -23,17 +24,20 @@ impl Variable {
         &self.name
     }
 
-    pub fn size(&self) -> usize {
-        match self.data_type {
-            DataType::INT => 4,
-        }
-    }
-
     pub fn offset(&self) -> usize {
-        self.offset + 4
+        self.offset + self.data_type.size()
     }
 
     pub fn data_type(&self) -> DataType {
         self.data_type.clone()
+    }
+}
+
+impl DataType {
+    pub fn size(&self) -> usize {
+        match self {
+            DataType::INT => 4,
+            DataType::CHAR => 1
+        }
     }
 }

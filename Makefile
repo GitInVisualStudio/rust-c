@@ -8,7 +8,8 @@ asm: run
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
 test:
-	gcc -o  $(OUTPUTFILE) code.c
+	gcc -S -o output.s code.c
+	gcc -o $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
 cmp:
 	gcc -o  $(OUTPUTFILE) output.s

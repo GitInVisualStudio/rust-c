@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::lexer::{tokens::Token, LexerError};
 
 use super::{
-    expression::Expression, generator::Generator, scope::Scope, statement_list::StatementList,
+    expression::Expression, generator::{Generator, register::Reg}, scope::Scope, statement_list::StatementList,
     ASTNode,
 };
 
@@ -42,12 +42,13 @@ impl ASTNode for IfStatement {
     fn generate(&self, gen: &mut Generator) -> Result<usize, std::io::Error> {
         self.condition.generate(gen)?;
         let (else_part, end) = Generator::generate_clause_names();
-        gen.emit_ins("cmpl", "$0", "%eax")?;
-        gen.emit(format!("\tje\t\t{}\n", else_part))?;
+        gen.cmp(Reg::IMMEDIATE(0), Reg::current())?;
+
+        gen.emit(&format!("\tje\t\t{}\n", else_part))?;
 
         self.statements.generate(gen)?;
 
-        gen.emit(format!("\tjmp \t{}\n", end))?;
+        gen.emit(&format!("\tjmp \t{}\n", end))?;
         gen.emit_label(&else_part)?;
 
         if let Some(else_part) = &self.else_part {

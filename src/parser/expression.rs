@@ -8,6 +8,7 @@ use super::variable::{DataType, Variable};
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
+use crate::parser::generator::register::{self, Reg};
 
 #[derive(Debug, PartialEq)]
 pub enum BinaryOps {
@@ -36,6 +37,9 @@ pub enum UnaryOps {
 pub enum Expression {
     Literal(i32),
     FunctionCall(Rc<FunctionCall>),
+    TypeExpression {
+        data_type: DataType,
+    },
     NamedVariable {
         stack_offset: usize,
         data_type: DataType,
@@ -65,18 +69,48 @@ impl ASTNode for Expression {
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
         match self {
-            Expression::Literal(value) => gen.mov(*value, "eax"),
+            Expression::Literal(value) => gen.mov(Reg::IMMEDIATE(*value), Reg::current()),
+            Expression::TypeExpression { data_type: _ } => todo!(),
+            Expression::NamedVariable {
+                stack_offset,
+                data_type,
+            } => {
+                Reg::set_size(data_type.size());
+                gen.mov(
+                    Reg::STACK {
+                        offset: *stack_offset,
+                    },
+                    Reg::current(),
+                )
+            }
+            Expression::VariableAssign {
+                stack_offset,
+                expression,
+            } => {
+                Reg::set_size(expression.data_type().size());
+                expression.generate(gen)?;
+                gen.mov(
+                    Reg::current(),
+                    Reg::STACK {
+                        offset: *stack_offset,
+                    },
+                )
+            }
             Expression::Unary {
                 expression,
                 operation,
             } => {
                 expression.generate(gen)?;
+                let reg = Reg::current();
                 match operation {
-                    UnaryOps::NEG => gen.emit("\tneg\t\t%eax\n".to_string()),
+                    UnaryOps::NEG => gen.emit_sins("neg", reg),
                     UnaryOps::LOGNEG => {
-                        gen.emit_ins("cmp ", "$0", "%eax")?;
-                        gen.mov(0, "eax")?;
-                        gen.emit("\tsete\t%al\n".to_string())
+                        gen.cmp(Reg::IMMEDIATE(0), reg)?;
+                        gen.mov(Reg::IMMEDIATE(0), reg)?;
+                        let prev = Reg::set_size(1);
+                        let result = gen.emit_sins("sete", reg);
+                        Reg::set_size(prev);
+                        result
                     }
                 }
             }
@@ -85,102 +119,88 @@ impl ASTNode for Expression {
                 second,
                 operation,
             } => {
-                first.generate(gen)?;
-                // push first expression
-                gen.push("rax")?;
-
                 if *operation == BinaryOps::AND || *operation == BinaryOps::OR {
-                    return self.generate_and_or(operation, second, gen);
+                    return self.generate_and_or(gen);
                 }
 
+                let first_reg = Reg::current();
+                first.generate(gen)?;
+                Reg::push();
                 second.generate(gen)?;
-                // pop first expression into rcx
-                gen.pop("rcx")?;
-                match operation {
-                    BinaryOps::ADD => gen.emit_ins("add ", "%ecx", "%eax"),
-                    BinaryOps::SUB => gen.emit(
-                        "    sub     %eax, %ecx
-    mov     %ecx, %eax
-"
-                        .to_string(),
-                    ),
-                    BinaryOps::MUL => gen.emit_ins("imul", "%ecx", "%eax"),
-                    BinaryOps::DIV => gen.emit(
-                        "    mov     %eax, %ebx
-    mov     %ecx, %eax
-    cdq
-    idiv    %ebx
-"
-                        .to_string(),
-                    ),
-                    BinaryOps::MOD => gen.emit(
-                        "    mov     %eax, %ebx
-    mov     %ecx, %eax
-    cdq
-    idiv    %ebx
-    mov     %edx, %eax
-"
-                        .to_string(),
-                    ),
-                    BinaryOps::EQ => gen.emit_cmp("sete"),
-                    BinaryOps::NE => gen.emit_cmp("setne"),
-                    BinaryOps::LT => gen.emit_cmp("setl"),
-                    BinaryOps::GT => gen.emit_cmp("setg"),
-                    BinaryOps::LE => gen.emit_cmp("setle"),
-                    BinaryOps::GE => gen.emit_cmp("setge"),
-                    _ => Ok(0),
-                }?;
+                let second_reg = Reg::pop();
+
+                match *operation {
+                    BinaryOps::ADD => gen.add(second_reg, first_reg)?,
+                    BinaryOps::SUB => gen.sub(second_reg, first_reg)?,
+                    BinaryOps::MUL => gen.mul(second_reg, first_reg)?,
+                    BinaryOps::DIV => {
+                        gen.mov(second_reg, Reg::RBX)?;
+                        gen.mov(first_reg, Reg::RAX)?;
+                        gen.emit("\tcdq\n")?;
+                        gen.emit_sins("idiv", Reg::RBX)?;
+                        gen.mov(Reg::RAX, Reg::current())?
+                    }
+                    BinaryOps::MOD => {
+                        gen.mov(second_reg, Reg::RBX)?;
+                        gen.mov(first_reg, Reg::RAX)?;
+                        gen.emit("\tcdq\n")?;
+                        gen.emit_sins("idiv", Reg::RBX)?;
+                        gen.mov(Reg::RDX, Reg::current())?
+                    }
+                    BinaryOps::EQ => gen.gen_cmp("sete", second_reg, first_reg)?,
+                    BinaryOps::NE => gen.gen_cmp("setne", second_reg, first_reg)?,
+                    BinaryOps::LT => gen.gen_cmp("setl", second_reg, first_reg)?,
+                    BinaryOps::GT => gen.gen_cmp("setg", second_reg, first_reg)?,
+                    BinaryOps::LE => gen.gen_cmp("setle", second_reg, first_reg)?,
+                    BinaryOps::GE => gen.gen_cmp("setge", second_reg, first_reg)?,
+                    _ => panic!("Something went wrong"),
+                };
                 Ok(0)
             }
-            Expression::NamedVariable {
-                stack_offset,
-                data_type: _,
-            } => {
-                gen.emit_ins("mov ", format!("-{}(%rbp)", stack_offset).as_str(), "%eax")?;
-                Ok(0)
-            }
-            Expression::VariableAssign {
-                stack_offset,
-                expression,
-            } => {
-                expression.generate(gen)?;
-                gen.emit(format!("\tmov \t%eax, -{}(%rbp)\n", stack_offset))?;
-                Ok(0)
-            }
-            Expression::FunctionCall(function_call) => function_call.generate(gen),
+            Expression::FunctionCall(call) => call.generate(gen),
         }
     }
 }
 
 impl Expression {
-    fn generate_and_or(
-        &self,
-        operation: &BinaryOps,
-        second: &Rc<Expression>,
-        gen: &mut Generator,
-    ) -> Result<usize, Error> {
-        let (second_expression_label, end_label) = Generator::generate_clause_names();
-        match operation {
-            BinaryOps::AND => {
-                gen.emit_ins("cmp ", "$0", "%eax")?;
-                gen.emit(format!("\tjne\t\t{}\n", second_expression_label))?;
-                gen.emit(format!("\tjmp\t\t{}\n", end_label))
-            }
-            BinaryOps::OR => {
-                gen.emit_ins("cmp ", "$0", "%eax")?;
-                gen.emit(format!("\tje\t\t{}\n", second_expression_label))?;
-                gen.mov(1, "eax")?;
-                gen.emit(format!("\tjmp\t\t{}\n", end_label))
-            }
-            _ => panic!("Wrong operation for boolean comparision!"),
-        }?;
-        gen.emit_label(&second_expression_label)?;
-        second.generate(gen)?;
+    fn generate_and_or(&self, gen: &mut Generator) -> Result<usize, Error> {
+        if let Expression::BinaryExpression {
+            first,
+            second,
+            operation,
+        } = self
+        {
+            let first_reg = Reg::current();
+            first.generate(gen)?;
 
-        gen.emit_ins("cmp ", "$0", "%eax")?;
-        gen.mov(1, "eax")?;
-        gen.emit("\tsetne\t%al\n".to_string())?;
-        gen.emit_label(&end_label)
+            let (second_expression_label, end_label) = Generator::generate_clause_names();
+            match *operation {
+                BinaryOps::AND => {
+                    gen.cmp(Reg::IMMEDIATE(0), first_reg)?;
+                    gen.emit(&format!("\tjne\t\t{}\n", second_expression_label))?;
+                    gen.emit(&format!("\tjmp\t\t{}\n", end_label))
+                }
+                BinaryOps::OR => {
+                    gen.cmp(Reg::IMMEDIATE(0), first_reg)?;
+                    gen.emit(&format!("\tje\t\t{}\n", second_expression_label))?;
+                    gen.emit(&format!("\tjmp\t\t{}\n", end_label))
+                }
+                _ => panic!("Wrong operation for boolean comparision!"),
+            }?;
+            gen.emit_label(&second_expression_label)?;
+            second.generate(gen)?;
+            let second_reg = Reg::current();
+
+            gen.cmp(Reg::IMMEDIATE(0), second_reg)?;
+            gen.mov(Reg::IMMEDIATE(1), second_reg)?;
+
+            let prev = Reg::set_size(1);
+            gen.emit_sins("setne", second_reg)?;
+            Reg::set_size(prev);
+
+            return gen.emit_label(&end_label);
+        }
+        panic!("this should not happen!");
     }
 
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
@@ -193,31 +213,50 @@ impl Expression {
                     .expect("was not able to parse int literal");
                 Ok(Rc::new(Self::Literal(value)))
             }
+            Token::INT => {
+                lexer.next();
+                Ok(Rc::new(Self::TypeExpression {
+                    data_type: DataType::INT,
+                }))
+            }
+            Token::CHAR => {
+                lexer.next();
+                Ok(Rc::new(Self::TypeExpression {
+                    data_type: DataType::CHAR,
+                }))
+            }
             Token::IDENT => {
                 let name = lexer.expect(Token::IDENT)?.trim_start().to_string();
 
-                if lexer.peek() == Token::LPAREN {
-                    return Ok(Rc::new(Self::FunctionCall(FunctionCall::parse_name(name, lexer, scope)?)))
+                match lexer.peek() {
+                    Token::LPAREN => Ok(Rc::new(Self::FunctionCall(FunctionCall::parse_name(
+                        name, lexer, scope,
+                    )?))),
+                    //TODO: have to make custom data_types
+                    // Token::IDENT => {
+                    //     Ok(Rc::new(Self::TypeExpression { data_type: DataType::INT }))
+                    // }
+                    _ => {
+                        let contains: Option<&Variable> = scope.get(&name);
+                        if let None = contains {
+                            return lexer.error(format!("Variable {} not found!", name));
+                        }
+                        let var = contains.unwrap();
+                        let offset = var.offset();
+                        if lexer.peek() == Token::ASSIGN {
+                            lexer.next();
+                            let expression = Expression::parse(lexer, scope)?;
+                            return Ok(Rc::new(Self::VariableAssign {
+                                stack_offset: offset,
+                                expression: expression,
+                            }));
+                        }
+                        Ok(Rc::new(Self::NamedVariable {
+                            stack_offset: offset,
+                            data_type: var.data_type(),
+                        }))
+                    }
                 }
-
-                let contains: Option<&Variable> = scope.get(&name);
-                if let None = contains {
-                    return lexer.error(format!("Variable {} not found!", name));
-                }
-                let var = contains.unwrap();
-                let offset = var.offset();
-                if lexer.peek() == Token::ASSIGN {
-                    lexer.next();
-                    let expression = Expression::parse(lexer, scope)?;
-                    return Ok(Rc::new(Self::VariableAssign {
-                        stack_offset: offset,
-                        expression: expression,
-                    }));
-                }
-                Ok(Rc::new(Self::NamedVariable {
-                    stack_offset: offset,
-                    data_type: var.data_type(),
-                }))
             }
             token => panic!("No literal for {:?}", token),
         }
@@ -268,11 +307,11 @@ impl Expression {
             lexer.next();
             let first_operand = expression;
             let second_operand = Self::parse_binary(lexer, scope, operations, index + 1)?;
-            if first_operand.data_type() != second_operand.data_type() {
-                return lexer.error(
-                    "cannot perform binary operation on 2 different data types!".to_string(),
-                );
-            }
+            // if first_operand.data_type() != second_operand.data_type() {
+            //     return lexer.error(
+            //         "cannot perform binary operation on 2 different data types!".to_string(),
+            //     );
+            // }
             expression = match *operand {
                 Token::ADD => Rc::new(Self::BinaryExpression {
                     first: first_operand,
@@ -379,6 +418,7 @@ impl Expression {
                 operation: _operation,
             } => first.data_type(),
             Expression::FunctionCall(_) => DataType::INT,
+            Expression::TypeExpression { data_type } => data_type.clone(),
         }
     }
 }

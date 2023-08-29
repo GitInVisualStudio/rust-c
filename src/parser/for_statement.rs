@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::lexer::tokens::Token;
+use crate::{lexer::tokens::Token, parser::generator::register::Reg};
 
 use super::{
     expression::Expression, generator::Generator, statement::Statement,
@@ -54,16 +54,16 @@ impl ASTNode for ForStatement {
         gen.emit_label(&body)?;
 
         self.condition.generate(gen)?;
-        gen.emit_ins("cmp ", "$0", "%eax")?;
+        gen.cmp(Reg::IMMEDIATE(0), Reg::current())?;
         // jump to end of for if the condition is not met anymore
-        gen.emit(format!("\tje\t\t{}\n", end))?;
+        gen.emit(&format!("\tje\t\t{}\n", end))?;
 
         self.body.generate(gen)?;
 
         gen.emit_label(&post)?;
         self.post.generate(gen)?;
 
-        gen.emit(format!("\tjmp\t\t{}\n", body))?;
+        gen.emit(&format!("\tjmp\t\t{}\n", body))?;
         gen.emit_label(&end)?;
         Ok(0)
     }

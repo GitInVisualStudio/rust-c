@@ -1,8 +1,12 @@
+pub mod register;
+
 use std::{
     fs::File,
     io::{BufWriter, Error, Write},
     sync::atomic::AtomicUsize,
 };
+
+use self::register::Reg;
 
 pub static CLAUSE_COUNT: AtomicUsize = AtomicUsize::new(0);
 pub static LABEL_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -18,51 +22,64 @@ impl Generator {
         })
     }
 
-    pub fn emit(&mut self, string: String) -> Result<usize, Error> {
+    pub fn emit(&mut self, string: &str) -> Result<usize, Error> {
         self.writer.write(string.as_bytes())
     }
 
-    pub fn emit_ins(
-        &mut self,
-        instruction: &str,
-        first: &str,
-        second: &str,
-    ) -> Result<usize, Error> {
-        self.emit(format!("\t{}\t{}, {}\n", instruction, first, second))
+    pub fn emit_ins(&mut self, ins: &str, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit(&format!("\t{}\t{}, {}\n", ins, from, to))
     }
 
-    pub fn mov(&mut self, value: i32, register: &str) -> Result<usize, Error> {
-        self.emit(format!("\tmov \t${}, %{}\n", value, register))
+    pub fn emit_sins(&mut self, ins: &str, reg: Reg) -> Result<usize, Error> {
+        self.emit(&format!("\t{}\t{}\n", ins, reg))
     }
 
-    pub fn push(&mut self, register: &str) -> Result<usize, Error> {
-        self.emit(format!("\tpush\t%{}\n", register))
+    pub fn mov(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("mov ", from, to)
     }
 
-    pub fn pop(&mut self, register: &str) -> Result<usize, Error> {
-        self.emit(format!("\tpop \t%{}\n", register))
+    pub fn add(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("add ", from, to)
+    }
+
+    pub fn sub(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("sub ", from, to)
+    }
+
+    pub fn mul(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("imul", from, to)
+    }
+
+    pub fn cmp(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("cmp ", from, to)
+    }
+
+    pub fn gen_cmp(&mut self, ins: &str, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.cmp(from, to)?;
+        self.mov(Reg::IMMEDIATE(0), to)?;
+        let prev = Reg::set_size(1);
+        let result = self.emit_sins(ins, to);
+        Reg::set_size(prev);
+        result
     }
 
     pub fn push_stack(&mut self, size: usize) -> Result<usize, Error> {
-        self.emit(format!(
+        self.emit(&format!(
             "\tpush\t%rbp\n\tmov \t%rsp, %rbp\n\tsub \t${}, %rsp\n",
             (size / 16 + 1) * 16
         ))
     }
 
     pub fn pop_stack(&mut self) -> Result<usize, Error> {
-        self.emit("\tleave\n".to_string())
-    }
-
-    pub fn emit_cmp(&mut self, comparator: &str) -> Result<usize, Error> {
-        self.emit(format!(
-            "\tcmp \t%eax, %ecx\n\tmov \t$0, %eax\n\t{}\t%al\n",
-            comparator
-        ))
+        self.emit("\tleave\n")
     }
 
     pub fn emit_label(&mut self, label: &str) -> Result<usize, Error> {
-        self.emit(format!("{}:\n", label))
+        self.emit(&format!("{}:\n", label))
+    }
+
+    pub fn call(&mut self, label: &str) -> Result<usize, Error> {
+        self.emit(&format!("\tcall \t{}\n", label))
     }
 
     pub fn generate_clause_names() -> (String, String) {
@@ -87,10 +104,5 @@ impl Generator {
 
     pub fn label_index() -> usize {
         LABEL_COUNT.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn get_register(index: usize) -> &'static str {
-        const REGISTER: [&str; 6] = ["%edi", "%esi", "%edx", "%ecx", "%r8d", "%r9d"];
-        &REGISTER[index]
     }
 }

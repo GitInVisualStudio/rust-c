@@ -28,7 +28,7 @@ impl IScope<Variable> for Scope {
         let vars = self.variables.last_mut();
         match vars {
             Some(x) => {
-                self.stack_offset += value.size();
+                self.stack_offset += value.data_type().size();
                 x.push(value)
             }
             None => panic!("was not able to add variable into scope!"),
