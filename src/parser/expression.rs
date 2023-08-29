@@ -8,7 +8,7 @@ use super::variable::{DataType, Variable};
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
-use crate::parser::generator::register::{self, Reg};
+use crate::parser::generator::register::Reg;
 
 #[derive(Debug, PartialEq)]
 pub enum BinaryOps {
@@ -35,7 +35,9 @@ pub enum UnaryOps {
 
 #[derive(Debug)]
 pub enum Expression {
-    Literal(i32),
+    LongLiteral(i64),
+    IntLiteral(i32),
+    CharLiteral(u8),
     FunctionCall(Rc<FunctionCall>),
     TypeExpression {
         data_type: DataType,
@@ -69,7 +71,18 @@ impl ASTNode for Expression {
 
     fn generate(&self, gen: &mut Generator) -> Result<usize, Error> {
         match self {
-            Expression::Literal(value) => gen.mov(Reg::IMMEDIATE(*value), Reg::current()),
+            Expression::IntLiteral(value) => {
+                Reg::set_size(4);
+                gen.mov(Reg::IMMEDIATE(*value as i64), Reg::current())
+            }
+            Expression::LongLiteral(value) => {
+                Reg::set_size(8);
+                gen.mov(Reg::IMMEDIATE(*value), Reg::current())
+            }
+            Expression::CharLiteral(value) => {
+                Reg::set_size(1);
+                gen.mov(Reg::IMMEDIATE(*value as i64), Reg::current())
+            }
             Expression::TypeExpression { data_type: _ } => todo!(),
             Expression::NamedVariable {
                 stack_offset,
@@ -211,7 +224,30 @@ impl Expression {
                     .trim_start()
                     .parse()
                     .expect("was not able to parse int literal");
-                Ok(Rc::new(Self::Literal(value)))
+                Ok(Rc::new(Self::IntLiteral(value)))
+            }
+            Token::CHARLITERAL => {
+                let string = lexer.expect(Token::CHARLITERAL)?;
+                if string.len() > 3 {
+                    let string = &string[1..3];
+                    return match string {
+                        "\\n" => Ok(Rc::new(Self::CharLiteral(b'\n'))),
+                        "\\t" => Ok(Rc::new(Self::CharLiteral(b'\t'))),
+                        _ => {
+                            println!("{}", string);
+                            let value: u8 = string[1..2].as_bytes().first().unwrap().clone();
+                            Ok(Rc::new(Self::CharLiteral(value)))
+                        }
+                    };
+                }
+                let value: u8 = string[1..2].as_bytes().first().unwrap().clone();
+                Ok(Rc::new(Self::CharLiteral(value)))
+            }
+            Token::LONG => {
+                lexer.next();
+                Ok(Rc::new(Self::TypeExpression {
+                    data_type: DataType::LONG,
+                }))
             }
             Token::INT => {
                 lexer.next();
@@ -232,10 +268,6 @@ impl Expression {
                     Token::LPAREN => Ok(Rc::new(Self::FunctionCall(FunctionCall::parse_name(
                         name, lexer, scope,
                     )?))),
-                    //TODO: have to make custom data_types
-                    // Token::IDENT => {
-                    //     Ok(Rc::new(Self::TypeExpression { data_type: DataType::INT }))
-                    // }
                     _ => {
                         let contains: Option<&Variable> = scope.get(&name);
                         if let None = contains {
@@ -307,11 +339,15 @@ impl Expression {
             lexer.next();
             let first_operand = expression;
             let second_operand = Self::parse_binary(lexer, scope, operations, index + 1)?;
-            // if first_operand.data_type() != second_operand.data_type() {
-            //     return lexer.error(
-            //         "cannot perform binary operation on 2 different data types!".to_string(),
-            //     );
-            // }
+            if first_operand.data_type() != second_operand.data_type()
+                && !first_operand
+                    .data_type()
+                    .can_convert(second_operand.data_type())
+            {
+                return lexer.error(
+                    "cannot perform binary operation on 2 different data types!".to_string(),
+                );
+            }
             expression = match *operand {
                 Token::ADD => Rc::new(Self::BinaryExpression {
                     first: first_operand,
@@ -399,7 +435,9 @@ impl Expression {
 
     pub fn data_type(&self) -> DataType {
         match self {
-            Expression::Literal(_) => DataType::INT,
+            Expression::IntLiteral(_) => DataType::INT,
+            Expression::CharLiteral(_) => DataType::CHAR,
+            Expression::LongLiteral(_) => DataType::LONG,
             Expression::NamedVariable {
                 data_type,
                 stack_offset: _,
@@ -417,7 +455,7 @@ impl Expression {
                 second: _second,
                 operation: _operation,
             } => first.data_type(),
-            Expression::FunctionCall(_) => DataType::INT,
+            Expression::FunctionCall(call) => call.return_type(),
             Expression::TypeExpression { data_type } => data_type.clone(),
         }
     }

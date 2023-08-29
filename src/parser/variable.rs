@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
+    LONG,
     INT,
     CHAR,
 }
@@ -37,7 +38,14 @@ impl DataType {
     pub fn size(&self) -> usize {
         match self {
             DataType::INT => 4,
-            DataType::CHAR => 1
+            DataType::CHAR => 1,
+            DataType::LONG => 8,
+        }
+    }
+
+    pub fn can_convert(&self, other: DataType) -> bool {
+        match (self, other) {
+            _ => true
         }
     }
 }

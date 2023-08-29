@@ -1,11 +1,12 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::expression::Expression;
 use super::generator::register::Reg;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
-use super::variable::Variable;
+use super::variable::{Variable, DataType};
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
@@ -15,6 +16,7 @@ pub struct Function {
     statements: Option<Rc<StatementList>>,
     parameter: Vec<Rc<Variable>>,
     name: String,
+    return_type: DataType,
     stack_size: usize,
 }
 
@@ -24,7 +26,7 @@ impl ASTNode for Function {
         Self: Sized,
     {
         scope.push();
-        lexer.expect(Token::INT)?;
+        let type_expression = Expression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
 
         // check if function already exists
@@ -48,6 +50,7 @@ impl ASTNode for Function {
                 statements: None,
                 name: name,
                 parameter: parameter,
+                return_type: type_expression.data_type()
             });
             scope.pop();
             scope.add(result.clone());
@@ -61,6 +64,7 @@ impl ASTNode for Function {
             statements: Some(statements),
             name: name,
             parameter: parameter,
+            return_type: type_expression.data_type()
         });
 
         scope.pop();
@@ -97,9 +101,9 @@ impl Function {
     }
 
     fn parse_parameter(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Variable>, LexerError> {
-        lexer.expect(Token::INT)?;
+        let type_expression = Expression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
-        let var = Variable::new(&name, super::variable::DataType::INT, scope.stack_size());
+        let var = Variable::new(&name, type_expression.data_type(), scope.stack_size());
         let var = Rc::new(var);
 
         let contains: Option<&Variable> = scope.get(&name);
@@ -120,5 +124,9 @@ impl Function {
 
     pub fn parameter(&self) -> &Vec<Rc<Variable>> {
         &self.parameter
+    }
+
+    pub fn return_type(&self) -> DataType {
+        self.return_type.clone()
     }
 }

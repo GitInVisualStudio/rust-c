@@ -19,7 +19,7 @@ impl ASTNode for Program {
         Self: Sized,
     {
         let mut funcs: Vec<Rc<dyn ASTNode>> = Vec::new();
-        while lexer.peek() == Token::INT {
+        while lexer.peek() != Token::EOF {
             funcs.push(Function::parse(lexer, scope)?)
         }
         lexer.expect(Token::EOF)?;

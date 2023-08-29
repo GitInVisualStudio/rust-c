@@ -20,7 +20,7 @@ pub enum Reg {
     R14,
     R15,
     STACK { offset: usize },
-    IMMEDIATE(i32),
+    IMMEDIATE(i64),
 }
 
 fn get_index(reg: usize) -> Reg {

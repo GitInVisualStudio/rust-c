@@ -5,15 +5,18 @@ use crate::lexer::{tokens::Token, Lexer};
 use super::{
     expression::Expression,
     function::Function,
+    generator::register::Reg,
     scope::{IScope, Scope},
     variable::DataType,
-    ASTNode, generator::{Generator, register::Reg},
+    ASTNode,
 };
 
 #[derive(Debug)]
 pub struct FunctionCall {
     name: String,
     parameter: Vec<Rc<Expression>>,
+    data_types: Vec<DataType>,
+    return_type: DataType
 }
 
 impl ASTNode for FunctionCall {
@@ -31,23 +34,29 @@ impl ASTNode for FunctionCall {
         // store parameter in registers
         for (index, parameter) in self.parameter.iter().enumerate() {
             parameter.generate(gen)?;
+            Reg::set_size(self.data_types[index].size());
             gen.mov(Reg::current(), Reg::get_parameter_index(index))?;
         }
-        
+
         Reg::set_size(8);
         let prev = Reg::current();
-        while Reg::current() != Reg::R10 {
-            gen.emit_sins("push", Reg::pop())?;
+        if prev != Reg::R10 {
+            while Reg::current() != Reg::R10 {
+                gen.emit_sins("push", Reg::pop())?;
+            }
+            gen.emit_sins("push", Reg::current())?;
         }
-        gen.emit_sins("push", Reg::current())?;
-
         gen.call(&self.name)?;
 
-        Reg::set_size(8);
-        while Reg::current() != prev {
-            gen.emit_sins("pop ", Reg::push())?;
+        if prev != Reg::R10 {
+            Reg::set_size(8);
+            while Reg::current() != prev {
+                gen.emit_sins("pop ", Reg::push())?;
+            }
+            gen.emit_sins("pop ", Reg::current())?;
         }
-        gen.emit_sins("pop ", Reg::current())?;
+
+        Reg::set_size(self.return_type.size());
         gen.mov(Reg::RAX, Reg::current())
     }
 }
@@ -63,7 +72,8 @@ impl FunctionCall {
             return lexer.error(format!("Cannot call undefined function {}!", name));
         }
 
-        let function: Vec<DataType> = function
+        let return_type = function.unwrap().return_type();
+        let data_types: Vec<DataType> = function
             .unwrap()
             .parameter()
             .iter()
@@ -81,12 +91,14 @@ impl FunctionCall {
         }
         lexer.next();
 
-        if parameter.len() != function.len() {
+        if parameter.len() != data_types.len() {
             return lexer.error(format!("Parameter count does not match up!"));
         }
 
-        for (parameter, passed_parameter) in function.iter().zip(&parameter) {
-            if *parameter != passed_parameter.data_type() {
+        for (parameter, passed_parameter) in data_types.iter().zip(&parameter) {
+            if *parameter != passed_parameter.data_type()
+                && !parameter.can_convert(passed_parameter.data_type())
+            {
                 return lexer.error(format!("Parameter type does not match up!"));
             }
         }
@@ -94,6 +106,12 @@ impl FunctionCall {
         Ok(Rc::new(FunctionCall {
             name: name,
             parameter: parameter,
+            data_types: data_types,
+            return_type: return_type
         }))
+    }
+
+    pub fn return_type(&self) -> DataType {
+        self.return_type.clone()
     }
 }

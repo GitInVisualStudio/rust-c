@@ -1,6 +1,8 @@
 pub mod lexer;
 pub mod parser;
 
+use std::fs::File;
+
 use parser::{generator::Generator, ASTNode};
 
 fn main() {

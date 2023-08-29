@@ -71,7 +71,7 @@ impl ASTNode for Statement {
                 let statement = Rc::new(Statement::WhileStatement(statement));
                 return Ok(statement);
             }
-            Token::IDENT | Token::INT | Token::CHAR => Self::parse_variable_declaration(lexer, scope),
+            Token::IDENT | Token::INT | Token::CHAR | Token::LONG => Self::parse_variable_declaration(lexer, scope),
             Token::INTLITERAL => Ok(Rc::new(Self::SingleExpression {
                 expression: Expression::parse(lexer, scope)?,
             })),
@@ -89,6 +89,12 @@ impl ASTNode for Statement {
                     expression.as_ref().unwrap().generate(gen)?;
                 }
                 gen.pop_stack()?;
+                let prev = Reg::get_size();
+                if prev < 8 {
+                    Reg::set_size(8);
+                    gen.mov(Reg::IMMEDIATE(0), Reg::RAX)?;
+                    Reg::set_size(prev);
+                }
                 gen.mov(Reg::current(), Reg::RAX)?;
                 gen.emit("\tret\n")?;
                 Ok(0)
