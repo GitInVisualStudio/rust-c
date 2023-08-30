@@ -1,6 +1,9 @@
-use std::rc::Rc;
+use std::{io::Error, rc::Rc};
 
-use crate::{lexer::tokens::Token, parser::generator::register::Reg};
+use crate::{
+    lexer::{tokens::Token, Lexer, LexerError},
+    parser::generator::register::Reg,
+};
 
 use super::{
     expression::{Expression, UnaryOps},
@@ -27,8 +30,8 @@ pub enum Assignment {
 
 impl ASTNode for Assignment {
     fn parse(
-        lexer: &mut crate::lexer::Lexer,
-        scope: &mut super::scope::Scope,
+        _: &mut crate::lexer::Lexer,
+        _: &mut super::scope::Scope,
     ) -> Result<Rc<Self>, crate::lexer::LexerError>
     where
         Self: Sized,
@@ -67,17 +70,22 @@ impl ASTNode for Assignment {
                 value,
                 address,
             } => {
-                index.generate(gen)?;
-                let index = Reg::push();
+                value.generate(gen)?;
+                let value = Reg::push();
+
                 address.generate(gen)?;
                 let address = Reg::push();
-                value.generate(gen)?;
+
+                index.generate(gen)?;
+                let index = Reg::current();
+
                 gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                 Reg::set_size(8);
                 gen.add(index, address)?;
                 let address = format!("({})", address);
                 Reg::set_size(self.data_type().size());
-                let result = gen.emit(&format!("\tmov \t{}, {}\n", Reg::current(), address));
+                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+
                 Reg::pop();
                 Reg::pop();
                 result
@@ -102,6 +110,17 @@ impl Assignment {
         }
     }
 
+    fn check_data_types(
+        from: &DataType,
+        to: &DataType,
+        lexer: &mut Lexer,
+    ) -> Result<bool, LexerError> {
+        if *from != *to && !from.can_convert(to.clone()) {
+            return lexer.error(format!("Cannot assign {:?} to {:?}!", from, to));
+        }
+        Ok(true)
+    }
+
     pub fn parse(
         base: &Rc<Expression>,
         lexer: &mut crate::lexer::Lexer,
@@ -114,15 +133,7 @@ impl Assignment {
                 data_type,
             } => {
                 let expression = Expression::parse(lexer, scope)?;
-                if *data_type != expression.data_type()
-                    && !expression.data_type().can_convert(data_type.clone())
-                {
-                    lexer.error(format!(
-                        "Cannot assign {:?} to {:?}!",
-                        expression.data_type(),
-                        data_type
-                    ))?;
-                }
+                Self::check_data_types(data_type, &expression.data_type(), lexer)?;
                 Self::VariableAssignment {
                     stack_offset: *stack_offset,
                     expression: expression,
@@ -130,6 +141,9 @@ impl Assignment {
             }
             Expression::Indexing { index, operand } => {
                 let expression = Expression::parse(lexer, scope)?;
+                if let DataType::PTR(base) = operand.data_type() {
+                    Self::check_data_types(&base, &expression.data_type(), lexer)?;
+                }
                 Self::ArrayAssignment {
                     index: index.clone(),
                     value: expression,
@@ -142,6 +156,9 @@ impl Assignment {
             } => match operation {
                 UnaryOps::DEREF => {
                     let expression = Expression::parse(lexer, scope)?;
+                    if let DataType::PTR(base) = address.data_type() {
+                        Self::check_data_types(&base, &expression.data_type(), lexer)?;
+                    }
                     Self::PtrAssignment {
                         address: address.clone(),
                         value: expression,

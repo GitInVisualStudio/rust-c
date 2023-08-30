@@ -49,7 +49,9 @@ impl ASTNode for ArrayExpression {
                     let last = expressions.last();
                     let data_type = expr.data_type();
                     if let Some(last) = last {
-                        if expr.data_type() != last.data_type() {
+                        if expr.data_type() != last.data_type()
+                            && !expr.data_type().can_convert(last.data_type())
+                        {
                             lexer.error("Array member must share the same datatype!".to_string())?
                         }
                     }
@@ -83,7 +85,12 @@ impl ASTNode for ArrayExpression {
                 let mut start_offset = *offset;
                 for expr in expressinos {
                     expr.generate(gen)?;
-                    gen.mov(Reg::current(), Reg::STACK { offset: start_offset })?;
+                    gen.mov(
+                        Reg::current(),
+                        Reg::STACK {
+                            offset: start_offset,
+                        },
+                    )?;
                     start_offset -= base_type.size();
                 }
                 Reg::set_size(8);

@@ -134,9 +134,13 @@ impl ASTNode for Expression {
                 },
                 UnaryOps::DEREF => {
                     expression.generate(gen)?;
+                    let size = Reg::get_size();
+                    Reg::set_size(8);
+                    let address = format!("{}", Reg::current());
+                    Reg::set_size(size);
                     gen.emit(&format!(
                         "\tmov \t({}),{}\n",
-                        Reg::current(),
+                        address,
                         Reg::current()
                     ))
                 }
@@ -155,7 +159,7 @@ impl ASTNode for Expression {
                 Reg::push();
                 second.generate(gen)?;
                 let second_reg = Reg::pop();
-                Reg::set_size(first.data_type().size());
+                Reg::set_size(self.data_type().size());
                 match *operation {
                     BinaryOps::ADD => gen.add(second_reg, first_reg)?,
                     BinaryOps::SUB => gen.sub(second_reg, first_reg)?,
@@ -378,7 +382,7 @@ impl Expression {
             if first_operand.data_type() != second_operand.data_type()
                 && !first_operand
                     .data_type()
-                    .can_convert(second_operand.data_type())
+                    .can_operate(second_operand.data_type())
             {
                 return lexer.error(
                     "cannot perform binary operation on 2 different data types!".to_string(),
@@ -497,9 +501,15 @@ impl Expression {
             },
             Expression::BinaryExpression {
                 first,
-                second: _second,
+                second,
                 operation: _operation,
-            } => first.data_type(),
+            } => {
+                if first.data_type().size() > second.data_type().size() {
+                    first.data_type()
+                } else {
+                    second.data_type()
+                }
+            }
             Expression::FunctionCall(call) => call.return_type(),
             Expression::ArrayExpressions(arr) => arr.data_type(),
             Expression::Indexing { index: _, operand } => match operand.data_type() {

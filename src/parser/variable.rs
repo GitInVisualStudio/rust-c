@@ -49,9 +49,15 @@ impl DataType {
 
     pub fn can_convert(&self, other: DataType) -> bool {
         match (self, other) {
-            // (_, DataType::PTR(_)) => false,
-            // (DataType::PTR(_), _) => false,
+            (_, DataType::PTR(_)) => false,
+            (DataType::PTR(_), _) => false,
             _ => true
         }
+    }
+
+    pub fn can_operate(&self, other: DataType) -> bool {
+        match (self, other) {
+            _ => true
+        }        
     }
 }
