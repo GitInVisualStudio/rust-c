@@ -13,7 +13,7 @@ fn main() {
                 let _ = value.generate(&mut gen);
             }
         }
-        Err(e) => println!("{:?}", e),
+        Err(e) => println!("{:#?}", e),
     }
     // use lexer::tokens::Token;
     // let lexer = lexer::Lexer::new("code.c");

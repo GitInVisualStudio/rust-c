@@ -75,7 +75,7 @@ impl ASTNode for Statement {
             Token::INT | Token::CHAR | Token::LONG => {
                 Self::parse_variable_declaration(lexer, scope)
             }
-            Token::INTLITERAL => Ok(Rc::new(Self::SingleExpression {
+            Token::INTLITERAL | Token::IDENT => Ok(Rc::new(Self::SingleExpression {
                 expression: Expression::parse(lexer, scope)?,
             })),
             Token::SEMIC => Ok(Rc::new(Self::Empty)),
@@ -157,6 +157,11 @@ impl Statement {
             Token::ASSIGN => {
                 lexer.next();
                 let expression = Expression::parse(lexer, scope)?;
+                if expression.data_type() != var.data_type()
+                    && !var.data_type().can_convert(expression.data_type())
+                {
+                    lexer.error(format!("cannot convert for {:?} to {:?}!", expression.data_type(), var.data_type()))?
+                }
                 Statement::VariableDeclaration {
                     variable: var,
                     expression: Some(expression),

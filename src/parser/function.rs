@@ -1,7 +1,6 @@
 use std::io::Error;
 use std::rc::Rc;
 
-use super::expression::Expression;
 use super::generator::register::Reg;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
@@ -102,7 +101,7 @@ impl Function {
     }
 
     fn parse_parameter(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Variable>, LexerError> {
-        let type_expression = Expression::parse(lexer, scope)?;
+        let type_expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
         let var = Variable::new(&name, type_expression.data_type(), scope.stack_size());
         let var = Rc::new(var);

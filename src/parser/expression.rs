@@ -111,11 +111,15 @@ impl ASTNode for Expression {
                 expression,
                 operation,
             } => {
-                expression.generate(gen)?;
-                let reg = Reg::current();
                 match operation {
-                    UnaryOps::NEG => gen.emit_sins("neg", reg),
+                    UnaryOps::NEG => {
+                        expression.generate(gen)?;
+                        let reg = Reg::current();
+                        gen.emit_sins("neg", reg)
+                    },
                     UnaryOps::LOGNEG => {
+                        expression.generate(gen)?;
+                        let reg = Reg::current();
                         gen.cmp(Reg::IMMEDIATE(0), reg)?;
                         gen.mov(Reg::IMMEDIATE(0), reg)?;
                         let prev = Reg::set_size(1);
@@ -123,8 +127,19 @@ impl ASTNode for Expression {
                         Reg::set_size(prev);
                         result
                     }
-                    UnaryOps::REF => todo!(),
-                    UnaryOps::DEREF => todo!(),
+                    UnaryOps::REF => {
+                        match expression.as_ref() {
+                            Expression::NamedVariable { stack_offset, data_type: _ } => {
+                                Reg::set_size(8);
+                                gen.lea(Reg::STACK { offset: *stack_offset }, Reg::current())
+                            },
+                            _ => panic!("should not happen!")
+                        }
+                    },
+                    UnaryOps::DEREF => {
+                        expression.generate(gen)?;
+                        gen.emit(&format!("\tmov \t({}),{}\n", Reg::current(), Reg::current()))
+                    },
                 }
             }
             Expression::BinaryExpression {
@@ -141,7 +156,7 @@ impl ASTNode for Expression {
                 Reg::push();
                 second.generate(gen)?;
                 let second_reg = Reg::pop();
-
+                Reg::set_size(first.data_type().size());
                 match *operation {
                     BinaryOps::ADD => gen.add(second_reg, first_reg)?,
                     BinaryOps::SUB => gen.sub(second_reg, first_reg)?,

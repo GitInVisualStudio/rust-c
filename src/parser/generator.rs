@@ -63,6 +63,10 @@ impl Generator {
         result
     }
 
+    pub fn lea(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        self.emit_ins("lea ", from, to)
+    }
+
     pub fn push_stack(&mut self, size: usize) -> Result<usize, Error> {
         self.emit(&format!(
             "\tpush\t%rbp\n\tmov \t%rsp, %rbp\n\tsub \t${}, %rsp\n",
