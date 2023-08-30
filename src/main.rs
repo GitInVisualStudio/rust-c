@@ -1,8 +1,6 @@
 pub mod lexer;
 pub mod parser;
 
-use std::fs::File;
-
 use parser::{generator::Generator, ASTNode};
 
 fn main() {
@@ -10,7 +8,7 @@ fn main() {
     match result {
         Ok(value) => {
             let gen = Generator::new("output.s");
-            println!("Program: {:?}", value);
+            println!("Program: {:#?}", value);
             if let Ok(mut gen) = gen {
                 let _ = value.generate(&mut gen);
             }

@@ -31,6 +31,8 @@ pub enum BinaryOps {
 pub enum UnaryOps {
     NEG,
     LOGNEG,
+    REF,
+    DEREF,
 }
 
 #[derive(Debug)]
@@ -39,9 +41,6 @@ pub enum Expression {
     IntLiteral(i32),
     CharLiteral(u8),
     FunctionCall(Rc<FunctionCall>),
-    TypeExpression {
-        data_type: DataType,
-    },
     NamedVariable {
         stack_offset: usize,
         data_type: DataType,
@@ -83,7 +82,6 @@ impl ASTNode for Expression {
                 Reg::set_size(1);
                 gen.mov(Reg::IMMEDIATE(*value as i64), Reg::current())
             }
-            Expression::TypeExpression { data_type: _ } => todo!(),
             Expression::NamedVariable {
                 stack_offset,
                 data_type,
@@ -125,6 +123,8 @@ impl ASTNode for Expression {
                         Reg::set_size(prev);
                         result
                     }
+                    UnaryOps::REF => todo!(),
+                    UnaryOps::DEREF => todo!(),
                 }
             }
             Expression::BinaryExpression {
@@ -243,24 +243,6 @@ impl Expression {
                 let value: u8 = string[1..2].as_bytes().first().unwrap().clone();
                 Ok(Rc::new(Self::CharLiteral(value)))
             }
-            Token::LONG => {
-                lexer.next();
-                Ok(Rc::new(Self::TypeExpression {
-                    data_type: DataType::LONG,
-                }))
-            }
-            Token::INT => {
-                lexer.next();
-                Ok(Rc::new(Self::TypeExpression {
-                    data_type: DataType::INT,
-                }))
-            }
-            Token::CHAR => {
-                lexer.next();
-                Ok(Rc::new(Self::TypeExpression {
-                    data_type: DataType::CHAR,
-                }))
-            }
             Token::IDENT => {
                 let name = lexer.expect(Token::IDENT)?.trim_start().to_string();
 
@@ -295,12 +277,31 @@ impl Expression {
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        let op = match lexer.next() {
+        let token = lexer.next();
+        let e = Self::parse_factor(lexer, scope)?;
+        let op = match token {
             Token::SUB => UnaryOps::NEG,
             Token::LOGNEG => UnaryOps::LOGNEG,
+            Token::REF => {
+                if let Expression::NamedVariable {
+                    stack_offset: _,
+                    data_type: _,
+                } = e.as_ref()
+                {
+                    UnaryOps::REF
+                } else {
+                    lexer.error("Cannot get address from non-variable expresion!".to_string())?
+                }
+            }
+            Token::MUL => {
+                if let DataType::PTR(_) = e.as_ref().data_type() {
+                    UnaryOps::DEREF
+                } else {
+                    lexer.error("Cannot de-refrence non-pointer expresion!".to_string())?
+                }
+            }
             _ => panic!("Cannot parse binary operation!"),
         };
-        let e = Self::parse_factor(lexer, scope)?;
         Ok(Rc::new(Self::Unary {
             expression: e,
             operation: op,
@@ -309,7 +310,7 @@ impl Expression {
 
     fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::SUB | Token::LOGNEG => Self::parse_unary(lexer, scope),
+            Token::SUB | Token::LOGNEG | Token::MUL | Token::REF => Self::parse_unary(lexer, scope),
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
                 let result = Self::parse_expressions(lexer, scope);
@@ -446,17 +447,24 @@ impl Expression {
                 stack_offset: _,
                 expression,
             } => expression.data_type(),
+            //TODO: match deref & ref to the base type
             Expression::Unary {
                 expression,
-                operation: _,
-            } => expression.data_type(),
+                operation: op,
+            } => match op {
+                UnaryOps::NEG | UnaryOps::LOGNEG => expression.data_type(),
+                UnaryOps::REF => DataType::PTR(Rc::new(expression.data_type())),
+                UnaryOps::DEREF => match expression.data_type() {
+                    DataType::PTR(x) => x.as_ref().clone(),
+                    _ => panic!("cannot deref non pointer data-type expression!"),
+                },
+            },
             Expression::BinaryExpression {
                 first,
                 second: _second,
                 operation: _operation,
             } => first.data_type(),
             Expression::FunctionCall(call) => call.return_type(),
-            Expression::TypeExpression { data_type } => data_type.clone(),
         }
     }
 }

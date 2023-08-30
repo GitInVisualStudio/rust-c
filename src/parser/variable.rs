@@ -1,8 +1,11 @@
+use std::rc::Rc;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     LONG,
     INT,
     CHAR,
+    PTR(Rc<DataType>)
 }
 
 #[derive(Debug)]
@@ -40,6 +43,7 @@ impl DataType {
             DataType::INT => 4,
             DataType::CHAR => 1,
             DataType::LONG => 8,
+            DataType::PTR(_) => 8
         }
     }
 

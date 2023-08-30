@@ -1,7 +1,6 @@
-int putchar(char c);
-
 int main() {
-    long value = 5;
-    int test = 5;
-    return test + value;
+    int a = 0;
+    int* value = &a;
+    int c = *value;
+    return 0;
 }

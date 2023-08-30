@@ -6,6 +6,7 @@ use super::generator::register::Reg;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
+use super::type_expression::TypeExpression;
 use super::variable::{Variable, DataType};
 use super::ASTNode;
 use crate::lexer::tokens::Token;
@@ -26,7 +27,7 @@ impl ASTNode for Function {
         Self: Sized,
     {
         scope.push();
-        let type_expression = Expression::parse(lexer, scope)?;
+        let type_expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
 
         // check if function already exists

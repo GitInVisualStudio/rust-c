@@ -3,11 +3,12 @@ use std::rc::Rc;
 
 use super::expression::Expression;
 use super::for_statement::ForStatement;
-use super::generator::Generator;
 use super::generator::register::Reg;
+use super::generator::Generator;
 use super::if_statement::IfStatement;
 use super::scope::{IScope, Scope};
-use super::variable::{Variable, DataType};
+use super::type_expression::TypeExpression;
+use super::variable::Variable;
 use super::while_statement::WhileStatement;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
@@ -71,7 +72,9 @@ impl ASTNode for Statement {
                 let statement = Rc::new(Statement::WhileStatement(statement));
                 return Ok(statement);
             }
-            Token::IDENT | Token::INT | Token::CHAR | Token::LONG => Self::parse_variable_declaration(lexer, scope),
+            Token::INT | Token::CHAR | Token::LONG => {
+                Self::parse_variable_declaration(lexer, scope)
+            }
             Token::INTLITERAL => Ok(Rc::new(Self::SingleExpression {
                 expression: Expression::parse(lexer, scope)?,
             })),
@@ -106,7 +109,12 @@ impl ASTNode for Statement {
                 if expression.is_some() {
                     expression.as_ref().unwrap().generate(gen)?;
                     Reg::set_size(variable.data_type().size());
-                    gen.mov(Reg::current(), Reg::STACK { offset: variable.offset() })?;
+                    gen.mov(
+                        Reg::current(),
+                        Reg::STACK {
+                            offset: variable.offset(),
+                        },
+                    )?;
                 }
                 Ok(0)
             }
@@ -134,43 +142,31 @@ impl Statement {
         lexer: &mut Lexer,
         scope: &mut Scope,
     ) -> Result<Rc<Self>, LexerError> {
-        let expression = Expression::parse(lexer, scope)?;
+        let expression = TypeExpression::parse(lexer, scope)?;
+        let name = lexer.expect(Token::IDENT)?.to_string();
+        let var = Variable::new(&name, expression.data_type(), scope.stack_size());
+        let var = Rc::new(var);
 
-        match expression.as_ref() {
-            Expression::TypeExpression { data_type } => {
-                let name = lexer.expect(Token::IDENT)?.to_string();
-                let var = Variable::new(
-                    &name,
-                    data_type.clone(),
-                    scope.stack_size(),
-                );
-                let var = Rc::new(var);
-
-                let contains: Option<&Variable> = scope.get(&name);
-                if let Some(_) = contains {
-                    return lexer.error(format!("Variable {} already declared in scope!", name));
-                }
-                scope.add(var.clone());
-
-                Ok(Rc::new(match lexer.peek() {
-                    Token::ASSIGN => {
-                        lexer.next();
-                        let expression = Expression::parse(lexer, scope)?;
-                        Statement::VariableDeclaration {
-                            variable: var,
-                            expression: Some(expression),
-                        }
-                    }
-                    _ => Statement::VariableDeclaration {
-                        variable: var,
-                        expression: None,
-                    },
-                }))
-            }
-            _ => Ok(Rc::new(Self::SingleExpression {
-                expression: expression
-            })),
+        let contains: Option<&Variable> = scope.get(&name);
+        if let Some(_) = contains {
+            return lexer.error(format!("Variable {} already declared in scope!", name));
         }
+        scope.add(var.clone());
+
+        Ok(Rc::new(match lexer.peek() {
+            Token::ASSIGN => {
+                lexer.next();
+                let expression = Expression::parse(lexer, scope)?;
+                Statement::VariableDeclaration {
+                    variable: var,
+                    expression: Some(expression),
+                }
+            }
+            _ => Statement::VariableDeclaration {
+                variable: var,
+                expression: None,
+            },
+        }))
     }
 
     fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
