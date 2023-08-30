@@ -1,8 +1,7 @@
-int puts(char *string);
 
 int main()
 {
-    char string[] = {'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd', '!', 0};
-    puts(string);
-    return 0;
+    int a[] = {1, 2, 3};
+    a[0] = 5;
+    return a[2];
 }

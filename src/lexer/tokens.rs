@@ -37,6 +37,7 @@ pub enum Token {
     LONG,
     LBRACE,
     RBRACE,
+    STRINGLIT,
     IDENT,
     EOF,
     ERR,
@@ -81,9 +82,10 @@ impl Token {
             33 => Token::CHARLITERAL,
             34 => Token::LONG,
             35 => Token::LBRACE,
-            36 => Token::RBRACE,        
-            37 => Token::IDENT,
-            38 => Token::EOF,
+            36 => Token::RBRACE,    
+            37 => Token::STRINGLIT,    
+            38 => Token::IDENT,
+            39 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -127,5 +129,6 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "long",
     "\\[",
     "\\]",
+    "\"[^\"]*\"",
     "\\w+",
 ];

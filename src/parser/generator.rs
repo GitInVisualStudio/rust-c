@@ -86,6 +86,17 @@ impl Generator {
         self.emit(&format!("\tcall \t{}\n", label))
     }
 
+    pub fn emit_string(&mut self, label: usize, string: &str) -> Result<usize, Error> {
+        self.emit(&format!(
+            "    .section   .rodata
+.LC{}:
+    .string	{}
+    .text
+",
+            label, string
+        ))
+    }
+
     pub fn generate_clause_names() -> (String, String) {
         let clause_count = CLAUSE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         (

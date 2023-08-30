@@ -75,11 +75,10 @@ impl ASTNode for Statement {
             Token::INT | Token::CHAR | Token::LONG => {
                 Self::parse_variable_declaration(lexer, scope)
             }
-            Token::INTLITERAL | Token::IDENT => Ok(Rc::new(Self::SingleExpression {
+            Token::SEMIC => Ok(Rc::new(Self::Empty)),
+            _ => Ok(Rc::new(Self::SingleExpression {
                 expression: Expression::parse(lexer, scope)?,
             })),
-            Token::SEMIC => Ok(Rc::new(Self::Empty)),
-            x => lexer.error(format!("Cannot parse statement: {:?}", x)),
         }?;
         lexer.expect(Token::SEMIC)?;
         Ok(result)

@@ -2,6 +2,7 @@ use std::io::Error;
 use std::rc::Rc;
 
 use super::array_expression::ArrayExpression;
+use super::assignment::Assignment;
 use super::function_call::FunctionCall;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
@@ -43,6 +44,7 @@ pub enum Expression {
     CharLiteral(u8),
     FunctionCall(Rc<FunctionCall>),
     ArrayExpressions(Rc<ArrayExpression>),
+    Assignment(Rc<Assignment>),
     Indexing {
         index: Rc<Expression>,
         operand: Rc<Expression>,
@@ -50,10 +52,6 @@ pub enum Expression {
     NamedVariable {
         stack_offset: usize,
         data_type: DataType,
-    },
-    VariableAssign {
-        stack_offset: usize,
-        expression: Rc<Expression>,
     },
     Unary {
         expression: Rc<Expression>,
@@ -98,19 +96,6 @@ impl ASTNode for Expression {
                         offset: *stack_offset,
                     },
                     Reg::current(),
-                )
-            }
-            Expression::VariableAssign {
-                stack_offset,
-                expression,
-            } => {
-                Reg::set_size(expression.data_type().size());
-                expression.generate(gen)?;
-                gen.mov(
-                    Reg::current(),
-                    Reg::STACK {
-                        offset: *stack_offset,
-                    },
                 )
             }
             Expression::Unary {
@@ -209,12 +194,9 @@ impl ASTNode for Expression {
                 gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index_reg)?;
                 Reg::set_size(8);
                 gen.add(index_reg, addr_reg)?;
-                gen.emit(&format!(
-                    "\tmov \t({}),{}\n",
-                    addr_reg,
-                    Reg::current()
-                ))
+                gen.emit(&format!("\tmov \t({}),{}\n", addr_reg, Reg::current()))
             }
+            Expression::Assignment(assignment) => assignment.generate(gen),
         }
     }
 }
@@ -262,9 +244,9 @@ impl Expression {
 
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::LCURL => Ok(Rc::new(Self::ArrayExpressions(ArrayExpression::parse(
-                lexer, scope,
-            )?))),
+            Token::LCURL | Token::STRINGLIT => Ok(Rc::new(Self::ArrayExpressions(
+                ArrayExpression::parse(lexer, scope)?,
+            ))),
             Token::INTLITERAL => {
                 let value: i32 = lexer
                     .expect(Token::INTLITERAL)?
@@ -304,14 +286,6 @@ impl Expression {
                         }
                         let var = contains.unwrap();
                         let offset = var.offset();
-                        if lexer.peek() == Token::ASSIGN {
-                            lexer.next();
-                            let expression = Expression::parse(lexer, scope)?;
-                            return Ok(Rc::new(Self::VariableAssign {
-                                stack_offset: offset,
-                                expression: expression,
-                            }));
-                        }
                         Ok(Rc::new(Self::NamedVariable {
                             stack_offset: offset,
                             data_type: var.data_type(),
@@ -321,6 +295,20 @@ impl Expression {
             }
             token => panic!("No literal for {:?}", token),
         }
+    }
+
+    fn parse_post_fix(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
+        let mut result = Self::parse_literal(lexer, scope)?;
+        while lexer.peek() == Token::LBRACE {
+            lexer.next();
+            let expression = Self::parse(lexer, scope)?;
+            lexer.expect(Token::RBRACE)?;
+            result = Rc::new(Self::Indexing {
+                index: expression,
+                operand: result,
+            });
+        }
+        Ok(result)
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
@@ -365,7 +353,7 @@ impl Expression {
                 result
             }
             // only literal left to parse
-            _ => Self::parse_literal(lexer, scope),
+            _ => Self::parse_post_fix(lexer, scope),
         }
     }
 
@@ -479,16 +467,12 @@ impl Expression {
             vec![Token::MUL, Token::DIV, Token::MOD],
         ];
         let result = Self::parse_binary(lexer, scope, &operations, 0)?;
-        if lexer.peek() == Token::LBRACE {
-            lexer.next();
-            let expression = Self::parse(lexer, scope)?;
-            lexer.expect(Token::RBRACE)?;
-            return Ok(Rc::new(Self::Indexing {
-                index: expression,
-                operand: result,
-            }));
+        match lexer.peek() {
+            Token::ASSIGN => Ok(Rc::new(Self::Assignment(Assignment::parse(
+                &result, lexer, scope,
+            )?))),
+            _ => Ok(result),
         }
-        Ok(result)
     }
 
     pub fn data_type(&self) -> DataType {
@@ -500,11 +484,6 @@ impl Expression {
                 data_type,
                 stack_offset: _,
             } => data_type.clone(),
-            Expression::VariableAssign {
-                stack_offset: _,
-                expression,
-            } => expression.data_type(),
-            //TODO: match deref & ref to the base type
             Expression::Unary {
                 expression,
                 operation: op,
@@ -527,6 +506,7 @@ impl Expression {
                 DataType::PTR(x) => x.as_ref().clone(),
                 _ => panic!("cannot deref non pointer data-type expression!"),
             },
+            Expression::Assignment(assignment) => assignment.data_type(),
         }
     }
 }

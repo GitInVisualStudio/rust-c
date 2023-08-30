@@ -1,15 +1,24 @@
 use std::rc::Rc;
 
-use crate::lexer::{tokens::Token, LexerError};
+use crate::{
+    lexer::{tokens::Token, LexerError},
+    parser::generator::Generator,
+};
 
-use super::{expression::Expression, variable::DataType, ASTNode, generator::register::Reg};
+use super::{expression::Expression, generator::register::Reg, variable::DataType, ASTNode};
 
 #[derive(Debug)]
-pub struct ArrayExpression {
-    data_type: DataType,
-    expressinos: Vec<Rc<Expression>>,
-    offset: usize,
-    base_type: DataType,
+pub enum ArrayExpression {
+    StackArray {
+        data_type: DataType,
+        expressinos: Vec<Rc<Expression>>,
+        offset: usize,
+        base_type: DataType,
+    },
+    StringLiteral {
+        label: usize,
+        string: String,
+    },
 }
 
 impl ASTNode for ArrayExpression {
@@ -20,50 +29,87 @@ impl ASTNode for ArrayExpression {
     where
         Self: Sized,
     {
-        let mut expressions: Vec<Rc<Expression>> = Vec::new();
-        lexer.expect(Token::LCURL)?;
-        if lexer.peek() == Token::RCURL {
-            lexer.error("Cannot create empty array".to_string())?;
-        }
-        while lexer.peek() != Token::RCURL {
-            let expr = Expression::parse(lexer, scope)?;
-            let last = expressions.last();
-            let data_type = expr.data_type();
-            if let Some(last) = last {
-                // if expr.data_type() != last.data_type() {
-                //     lexer.error("Array member must share the same datatype!".to_string())?
-                // }
+        Ok(Rc::new(match lexer.peek() {
+            Token::STRINGLIT => {
+                let label_index = Generator::next_label_index();
+                let string = lexer.expect(Token::STRINGLIT)?;
+                ArrayExpression::StringLiteral {
+                    label: label_index,
+                    string: string.to_string(),
+                }
             }
-            expressions.push(expr);
-            if lexer.peek() == Token::COMMA {
+            Token::LCURL => {
+                let mut expressions: Vec<Rc<Expression>> = Vec::new();
+                lexer.expect(Token::LCURL)?;
+                if lexer.peek() == Token::RCURL {
+                    lexer.error("Cannot create empty array".to_string())?;
+                }
+                while lexer.peek() != Token::RCURL {
+                    let expr = Expression::parse(lexer, scope)?;
+                    let last = expressions.last();
+                    let data_type = expr.data_type();
+                    if let Some(last) = last {
+                        if expr.data_type() != last.data_type() {
+                            lexer.error("Array member must share the same datatype!".to_string())?
+                        }
+                    }
+                    expressions.push(expr);
+                    if lexer.peek() == Token::COMMA {
+                        lexer.next();
+                    }
+                    scope.add_stack(data_type.size());
+                }
                 lexer.next();
+                let base_type = expressions.first().unwrap().data_type();
+                ArrayExpression::StackArray {
+                    data_type: DataType::PTR(Rc::new(base_type.clone())),
+                    expressinos: expressions,
+                    offset: scope.stack_size(),
+                    base_type: base_type,
+                }
             }
-            scope.add_stack(data_type.size());
-        }
-        lexer.next();
-        let base_type = expressions.first().unwrap().data_type();
-        Ok(Rc::new(ArrayExpression {
-            data_type: DataType::PTR(Rc::new(base_type.clone())),
-            expressinos: expressions,
-            offset: scope.stack_size(),
-            base_type: base_type
+            _ => panic!("cannot parse array expression!"),
         }))
     }
 
     fn generate(&self, gen: &mut super::generator::Generator) -> Result<usize, std::io::Error> {
-        let mut offset = self.offset;
-        for expr in &self.expressinos {
-            expr.generate(gen)?;
-            gen.mov(Reg::current(), Reg::STACK { offset: offset })?;
-            offset -= self.base_type.size();
+        match self {
+            ArrayExpression::StackArray {
+                data_type: _,
+                expressinos,
+                offset,
+                base_type,
+            } => {
+                let mut start_offset = *offset;
+                for expr in expressinos {
+                    expr.generate(gen)?;
+                    gen.mov(Reg::current(), Reg::STACK { offset: start_offset })?;
+                    start_offset -= base_type.size();
+                }
+                Reg::set_size(8);
+                gen.lea(Reg::STACK { offset: *offset }, Reg::current())
+            }
+            ArrayExpression::StringLiteral { label, string } => {
+                gen.emit_string(*label, string)?;
+                gen.emit(&format!("\tlea \t.LC{}(%rip), {}\n", label, Reg::current()))
+            }
         }
-        Reg::set_size(8);
-        gen.lea(Reg::STACK { offset: self.offset }, Reg::current())
     }
 }
 
 impl ArrayExpression {
     pub fn data_type(&self) -> DataType {
-        self.data_type.clone()
+        match self {
+            ArrayExpression::StackArray {
+                data_type,
+                expressinos: _,
+                offset: _,
+                base_type: _,
+            } => data_type.clone(),
+            ArrayExpression::StringLiteral {
+                label: _,
+                string: _,
+            } => DataType::PTR(Rc::new(DataType::CHAR)),
+        }
     }
 }
