@@ -80,4 +80,8 @@ impl Scope {
     pub fn stack_size(&self) -> usize {
         self.stack_offset
     }
+
+    pub fn add_stack(&mut self, size: usize) {
+        self.stack_offset += size
+    }
 }

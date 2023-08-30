@@ -11,6 +11,7 @@ pub mod for_statement;
 pub mod while_statement;
 pub mod function_call;
 pub mod type_expression;
+pub mod array_expression;
 
 use crate::lexer::{Lexer, LexerError};
 use std::{fmt::Debug, io::Error, rc::Rc};

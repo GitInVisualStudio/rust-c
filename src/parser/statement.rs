@@ -8,7 +8,7 @@ use super::generator::Generator;
 use super::if_statement::IfStatement;
 use super::scope::{IScope, Scope};
 use super::type_expression::TypeExpression;
-use super::variable::Variable;
+use super::variable::{DataType, Variable};
 use super::while_statement::WhileStatement;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
@@ -145,13 +145,25 @@ impl Statement {
         let expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
         let var = Variable::new(&name, expression.data_type(), scope.stack_size());
-        let var = Rc::new(var);
+        let mut var = Rc::new(var);
 
         let contains: Option<&Variable> = scope.get(&name);
         if let Some(_) = contains {
             return lexer.error(format!("Variable {} already declared in scope!", name));
         }
-        scope.add(var.clone());
+
+        if lexer.peek() == Token::LBRACE {
+            lexer.next();
+            lexer.expect(Token::RBRACE)?;
+            var = Rc::new(Variable::new(
+                &name,
+                DataType::PTR(Rc::new(expression.data_type())),
+                scope.stack_size(),
+            ));
+            scope.add(var.clone());
+        } else {
+            scope.add(var.clone());
+        }
 
         Ok(Rc::new(match lexer.peek() {
             Token::ASSIGN => {
@@ -160,7 +172,11 @@ impl Statement {
                 if expression.data_type() != var.data_type()
                     && !var.data_type().can_convert(expression.data_type())
                 {
-                    lexer.error(format!("cannot convert for {:?} to {:?}!", expression.data_type(), var.data_type()))?
+                    lexer.error(format!(
+                        "cannot convert for {:?} to {:?}!",
+                        expression.data_type(),
+                        var.data_type()
+                    ))?
                 }
                 Statement::VariableDeclaration {
                     variable: var,

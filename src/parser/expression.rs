@@ -1,6 +1,7 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::array_expression::ArrayExpression;
 use super::function_call::FunctionCall;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
@@ -41,6 +42,11 @@ pub enum Expression {
     IntLiteral(i32),
     CharLiteral(u8),
     FunctionCall(Rc<FunctionCall>),
+    ArrayExpressions(Rc<ArrayExpression>),
+    Indexing {
+        index: Rc<Expression>,
+        operand: Rc<Expression>,
+    },
     NamedVariable {
         stack_offset: usize,
         data_type: DataType,
@@ -110,38 +116,46 @@ impl ASTNode for Expression {
             Expression::Unary {
                 expression,
                 operation,
-            } => {
-                match operation {
-                    UnaryOps::NEG => {
-                        expression.generate(gen)?;
-                        let reg = Reg::current();
-                        gen.emit_sins("neg", reg)
-                    },
-                    UnaryOps::LOGNEG => {
-                        expression.generate(gen)?;
-                        let reg = Reg::current();
-                        gen.cmp(Reg::IMMEDIATE(0), reg)?;
-                        gen.mov(Reg::IMMEDIATE(0), reg)?;
-                        let prev = Reg::set_size(1);
-                        let result = gen.emit_sins("sete", reg);
-                        Reg::set_size(prev);
-                        result
-                    }
-                    UnaryOps::REF => {
-                        match expression.as_ref() {
-                            Expression::NamedVariable { stack_offset, data_type: _ } => {
-                                Reg::set_size(8);
-                                gen.lea(Reg::STACK { offset: *stack_offset }, Reg::current())
-                            },
-                            _ => panic!("should not happen!")
-                        }
-                    },
-                    UnaryOps::DEREF => {
-                        expression.generate(gen)?;
-                        gen.emit(&format!("\tmov \t({}),{}\n", Reg::current(), Reg::current()))
-                    },
+            } => match operation {
+                UnaryOps::NEG => {
+                    expression.generate(gen)?;
+                    let reg = Reg::current();
+                    gen.emit_sins("neg", reg)
                 }
-            }
+                UnaryOps::LOGNEG => {
+                    expression.generate(gen)?;
+                    let reg = Reg::current();
+                    gen.cmp(Reg::IMMEDIATE(0), reg)?;
+                    gen.mov(Reg::IMMEDIATE(0), reg)?;
+                    let prev = Reg::set_size(1);
+                    let result = gen.emit_sins("sete", reg);
+                    Reg::set_size(prev);
+                    result
+                }
+                UnaryOps::REF => match expression.as_ref() {
+                    Expression::NamedVariable {
+                        stack_offset,
+                        data_type: _,
+                    } => {
+                        Reg::set_size(8);
+                        gen.lea(
+                            Reg::STACK {
+                                offset: *stack_offset,
+                            },
+                            Reg::current(),
+                        )
+                    }
+                    _ => panic!("should not happen!"),
+                },
+                UnaryOps::DEREF => {
+                    expression.generate(gen)?;
+                    gen.emit(&format!(
+                        "\tmov \t({}),{}\n",
+                        Reg::current(),
+                        Reg::current()
+                    ))
+                }
+            },
             Expression::BinaryExpression {
                 first,
                 second,
@@ -186,6 +200,21 @@ impl ASTNode for Expression {
                 Ok(0)
             }
             Expression::FunctionCall(call) => call.generate(gen),
+            Expression::ArrayExpressions(arr) => arr.generate(gen),
+            Expression::Indexing { index, operand } => {
+                index.generate(gen)?;
+                let index_reg = Reg::push();
+                operand.generate(gen)?;
+                let addr_reg = Reg::pop();
+                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index_reg)?;
+                Reg::set_size(8);
+                gen.add(index_reg, addr_reg)?;
+                gen.emit(&format!(
+                    "\tmov \t({}),{}\n",
+                    addr_reg,
+                    Reg::current()
+                ))
+            }
         }
     }
 }
@@ -233,6 +262,9 @@ impl Expression {
 
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
+            Token::LCURL => Ok(Rc::new(Self::ArrayExpressions(ArrayExpression::parse(
+                lexer, scope,
+            )?))),
             Token::INTLITERAL => {
                 let value: i32 = lexer
                     .expect(Token::INTLITERAL)?
@@ -446,7 +478,17 @@ impl Expression {
             vec![Token::ADD, Token::SUB],
             vec![Token::MUL, Token::DIV, Token::MOD],
         ];
-        Self::parse_binary(lexer, scope, &operations, 0)
+        let result = Self::parse_binary(lexer, scope, &operations, 0)?;
+        if lexer.peek() == Token::LBRACE {
+            lexer.next();
+            let expression = Self::parse(lexer, scope)?;
+            lexer.expect(Token::RBRACE)?;
+            return Ok(Rc::new(Self::Indexing {
+                index: expression,
+                operand: result,
+            }));
+        }
+        Ok(result)
     }
 
     pub fn data_type(&self) -> DataType {
@@ -480,6 +522,11 @@ impl Expression {
                 operation: _operation,
             } => first.data_type(),
             Expression::FunctionCall(call) => call.return_type(),
+            Expression::ArrayExpressions(arr) => arr.data_type(),
+            Expression::Indexing { index: _, operand } => match operand.data_type() {
+                DataType::PTR(x) => x.as_ref().clone(),
+                _ => panic!("cannot deref non pointer data-type expression!"),
+            },
         }
     }
 }

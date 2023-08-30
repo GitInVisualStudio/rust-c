@@ -35,6 +35,8 @@ pub enum Token {
     CHAR,
     CHARLITERAL,
     LONG,
+    LBRACE,
+    RBRACE,
     IDENT,
     EOF,
     ERR,
@@ -78,8 +80,10 @@ impl Token {
             32 => Token::CHAR,
             33 => Token::CHARLITERAL,
             34 => Token::LONG,
-            35 => Token::IDENT,
-            36 => Token::EOF,
+            35 => Token::LBRACE,
+            36 => Token::RBRACE,        
+            37 => Token::IDENT,
+            38 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -121,5 +125,7 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "char",
     "(\'.\')",
     "long",
+    "\\[",
+    "\\]",
     "\\w+",
 ];
