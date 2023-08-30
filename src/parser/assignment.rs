@@ -1,4 +1,4 @@
-use std::{io::Error, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     lexer::{tokens::Token, Lexer, LexerError},
@@ -56,12 +56,16 @@ impl ASTNode for Assignment {
             }
             Assignment::PtrAssignment { value, address } => {
                 Reg::set_size(self.data_type().size());
-                let address_reg = Reg::current();
                 address.generate(gen)?;
-                Reg::push();
+                let address = Reg::push();
                 value.generate(gen)?;
+                let value = Reg::current();
+
                 Reg::set_size(8);
-                let result = gen.emit(&format!("\tmov \t{}, ({})\n", Reg::current(), address_reg));
+                let address = format!("({})", address);
+
+                Reg::set_size(self.data_type().size());
+                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
                 Reg::pop();
                 result
             }
@@ -101,12 +105,18 @@ impl Assignment {
                 stack_offset: _,
                 expression,
             } => expression.data_type(),
-            Assignment::PtrAssignment { value, address: _ } => value.data_type(),
+            Assignment::PtrAssignment { value: _, address } => match address.data_type() {
+                DataType::PTR(x) => x.as_ref().clone(),
+                x => x.clone(),
+            },
             Assignment::ArrayAssignment {
                 index: _,
-                value,
-                address: _,
-            } => value.data_type(),
+                value: _,
+                address,
+            } => match address.data_type() {
+                DataType::PTR(x) => x.as_ref().clone(),
+                x => x.clone(),
+            },
         }
     }
 
