@@ -7,6 +7,7 @@ use super::generator::register::Reg;
 use super::generator::Generator;
 use super::if_statement::IfStatement;
 use super::scope::{IScope, Scope};
+use super::statement_list::StatementList;
 use super::type_expression::TypeExpression;
 use super::variable::{DataType, Variable};
 use super::while_statement::WhileStatement;
@@ -26,6 +27,7 @@ pub enum Statement {
         variable: Rc<Variable>,
         expression: Option<Rc<Expression>>,
     },
+    StatementList(Rc<StatementList>),
     IfStatement(Rc<IfStatement>),
     ForStatement(Rc<ForStatement>),
     WhileStatement(Rc<WhileStatement>),
@@ -45,12 +47,18 @@ impl ASTNode for Statement {
     {
         let result = match lexer.peek() {
             Token::CONTINUE => {
+                if Generator::label_index() == 0 {
+                    lexer.error("Continue may only be used inside a loop!".to_string())?;
+                }
                 lexer.next();
                 Ok(Rc::new(Self::Continue {
                     label_index: Generator::label_index(),
                 }))
             }
             Token::BREAK => {
+                if Generator::label_index() == 0 {
+                    lexer.error("Break may only be used inside a loop!".to_string())?;
+                }
                 lexer.next();
                 Ok(Rc::new(Self::Break {
                     label_index: Generator::label_index(),
@@ -76,6 +84,11 @@ impl ASTNode for Statement {
                 Self::parse_variable_declaration(lexer, scope)
             }
             Token::SEMIC => Ok(Rc::new(Self::Empty)),
+            Token::LCURL => {
+                return Ok(Rc::new(Self::StatementList(StatementList::parse(
+                    lexer, scope,
+                )?)))
+            }
             _ => Ok(Rc::new(Self::SingleExpression {
                 expression: Expression::parse(lexer, scope)?,
             })),
@@ -123,7 +136,7 @@ impl ASTNode for Statement {
             Statement::WhileStatement(while_statement) => while_statement.generate(gen),
             Statement::Empty => Ok(0),
             Statement::Continue { label_index } => {
-                let (condition, _, _) = Generator::generate_label_names(*label_index);
+                let (_, _, condition) = Generator::generate_label_names(*label_index);
                 gen.emit(&format!("\tjmp \t{}\n", condition))?;
                 Ok(0)
             }
@@ -132,6 +145,7 @@ impl ASTNode for Statement {
                 gen.emit(&format!("\tjmp \t{}\n", end))?;
                 Ok(0)
             }
+            Statement::StatementList(list) => list.generate(gen),
         }
     }
 }

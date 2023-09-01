@@ -114,7 +114,7 @@ impl Generator {
     }
 
     pub fn next_label_index() -> usize {
-        LABEL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        LABEL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
     }
 
     pub fn label_index() -> usize {

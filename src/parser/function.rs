@@ -6,7 +6,7 @@ use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
 use super::type_expression::TypeExpression;
-use super::variable::{Variable, DataType};
+use super::variable::{DataType, Variable};
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
@@ -29,13 +29,6 @@ impl ASTNode for Function {
         let type_expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
 
-        // check if function already exists
-        let contains: Option<&Function> = scope.get(&name);
-        if let Some(x) = contains {
-            if x.statements.is_some() {
-                return lexer.error(format!("Function {} already exists!", name));
-            }
-        }
         lexer.expect(Token::LPAREN)?;
         let mut parameter: Vec<Rc<Variable>> = Vec::new();
         while lexer.peek() != Token::RPAREN {
@@ -50,8 +43,9 @@ impl ASTNode for Function {
                 statements: None,
                 name: name,
                 parameter: parameter,
-                return_type: type_expression.data_type()
+                return_type: type_expression.data_type(),
             });
+            result.valid(lexer, scope)?;
             scope.pop();
             scope.add(result.clone());
             return Ok(result);
@@ -64,8 +58,10 @@ impl ASTNode for Function {
             statements: Some(statements),
             name: name,
             parameter: parameter,
-            return_type: type_expression.data_type()
+            return_type: type_expression.data_type(),
         });
+
+        result.valid(lexer, scope)?;
 
         scope.pop();
         scope.add(result.clone());
@@ -96,6 +92,25 @@ impl ASTNode for Function {
 }
 
 impl Function {
+    fn valid(&self, lexer: &mut Lexer, scope: &mut Scope) -> Result<bool, LexerError> {
+        // check if function already exists
+        let contains: Option<&Function> = scope.get(&self.name);
+        if let Some(x) = contains {
+            if x.statements.is_some() && self.statements.is_some() {
+                return lexer.error(format!("Function {} already exists!", &self.name));
+            }
+            for (other, own) in self.parameter.iter().zip(&x.parameter) {
+                if other.data_type() != own.data_type() || x.parameter.len() != self.parameter.len()
+                {
+                    return lexer.error(format!(
+                        "Declaration is incompatible with other declaration!"
+                    ));
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub fn name(&self) -> &String {
         &self.name
     }

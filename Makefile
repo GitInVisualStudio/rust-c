@@ -1,9 +1,10 @@
 OUTPUTFILE = target/debug/output
+COMPILER = target/debug/rust-compiler
 
 build:
 	cargo build
 run:
-	cargo run
+	cargo run code.c output.s
 asm: run
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
@@ -14,4 +15,5 @@ test:
 cmp:
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
-	
+run-test: build
+	python3 tests/test.py  $(COMPILER)

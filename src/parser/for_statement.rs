@@ -11,7 +11,7 @@ use super::{
 pub struct ForStatement {
     init: Rc<Statement>,
     condition: Rc<Expression>,
-    post: Rc<Expression>,
+    post: Option<Rc<Expression>>,
     body: Rc<StatementList>,
     label_index: usize,
 }
@@ -27,12 +27,23 @@ impl ASTNode for ForStatement {
         scope.push();
 
         lexer.expect_tokens(&[Token::FOR, Token::LPAREN])?;
-
+        let label_index = Generator::next_label_index();
         let init = Statement::parse(lexer, scope)?;
-        let condition = Expression::parse(lexer, scope)?;
+
+        let condition;
+        if lexer.peek() != Token::SEMIC {
+            condition = Expression::parse(lexer, scope)?;
+        } else {
+            condition = Rc::new(Expression::IntLiteral(1));
+        }
         lexer.expect(Token::SEMIC)?;
 
-        let post = Expression::parse(lexer, scope)?;
+        let post;
+        if lexer.peek() != Token::RPAREN {
+            post = Some(Expression::parse(lexer, scope)?);
+        } else {
+            post = None;
+        }
         lexer.expect(Token::RPAREN)?;
 
         let body = StatementList::parse(lexer, scope)?;
@@ -43,7 +54,7 @@ impl ASTNode for ForStatement {
             condition: condition,
             post: post,
             body: body,
-            label_index: Generator::next_label_index(),
+            label_index: label_index,
         }))
     }
 
@@ -61,7 +72,9 @@ impl ASTNode for ForStatement {
         self.body.generate(gen)?;
 
         gen.emit_label(&post)?;
-        self.post.generate(gen)?;
+        if let Some(post) = &self.post {
+            post.generate(gen)?;
+        }
 
         gen.emit(&format!("\tjmp\t\t{}\n", body))?;
         gen.emit_label(&end)?;

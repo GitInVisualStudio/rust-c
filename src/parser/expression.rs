@@ -35,6 +35,7 @@ pub enum UnaryOps {
     LOGNEG,
     REF,
     DEREF,
+    COMPLEMENT,
 }
 
 #[derive(Debug)]
@@ -107,6 +108,11 @@ impl ASTNode for Expression {
                     let reg = Reg::current();
                     gen.emit_sins("neg", reg)
                 }
+                UnaryOps::COMPLEMENT => {
+                    expression.generate(gen)?;
+                    let reg = Reg::current();
+                    gen.emit_sins("not", reg)
+                }
                 UnaryOps::LOGNEG => {
                     expression.generate(gen)?;
                     let reg = Reg::current();
@@ -138,11 +144,7 @@ impl ASTNode for Expression {
                     Reg::set_size(8);
                     let address = format!("{}", Reg::current());
                     Reg::set_size(size);
-                    gen.emit(&format!(
-                        "\tmov \t({}),{}\n",
-                        address,
-                        Reg::current()
-                    ))
+                    gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
                 }
             },
             Expression::BinaryExpression {
@@ -339,6 +341,7 @@ impl Expression {
                     lexer.error("Cannot de-refrence non-pointer expresion!".to_string())?
                 }
             }
+            Token::COMPLEMENT => UnaryOps::COMPLEMENT,
             _ => panic!("Cannot parse binary operation!"),
         };
         Ok(Rc::new(Self::Unary {
@@ -349,7 +352,7 @@ impl Expression {
 
     fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::SUB | Token::LOGNEG | Token::MUL | Token::REF => Self::parse_unary(lexer, scope),
+            Token::SUB | Token::LOGNEG | Token::MUL | Token::REF | Token::COMPLEMENT => Self::parse_unary(lexer, scope),
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
                 let result = Self::parse_expressions(lexer, scope);
@@ -492,7 +495,7 @@ impl Expression {
                 expression,
                 operation: op,
             } => match op {
-                UnaryOps::NEG | UnaryOps::LOGNEG => expression.data_type(),
+                UnaryOps::COMPLEMENT | UnaryOps::NEG | UnaryOps::LOGNEG => expression.data_type(),
                 UnaryOps::REF => DataType::PTR(Rc::new(expression.data_type())),
                 UnaryOps::DEREF => match expression.data_type() {
                     DataType::PTR(x) => x.as_ref().clone(),

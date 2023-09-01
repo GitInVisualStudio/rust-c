@@ -7,7 +7,7 @@ use super::{statement::Statement, ASTNode};
 #[derive(Debug)]
 pub struct StatementList {
     statements: Vec<Rc<Statement>>,
-    stack_size: usize
+    stack_size: usize,
 }
 
 impl ASTNode for StatementList {
@@ -19,11 +19,21 @@ impl ASTNode for StatementList {
         Self: Sized,
     {
         if lexer.peek() != Token::LCURL {
-            let statements = vec![Statement::parse(lexer, scope)?];
-            return Ok(Rc::new(StatementList {
-                statements: statements,
-                stack_size: 0
-            }));
+            let statement = Statement::parse(lexer, scope)?;
+            match statement.as_ref() {
+                Statement::VariableDeclaration {
+                    variable: _,
+                    expression: _,
+                } => lexer
+                    .error("A depended statement may not be a variable declaration!".to_string())?,
+                _ => {
+                    let statements = vec![statement];
+                    return Ok(Rc::new(StatementList {
+                        statements: statements,
+                        stack_size: 0,
+                    }));
+                }
+            }
         }
         lexer.next();
         scope.push();
@@ -31,12 +41,13 @@ impl ASTNode for StatementList {
         while lexer.peek() != Token::RCURL {
             statements.push(Statement::parse(lexer, scope)?);
         }
+
         let size = scope.stack_size();
         scope.pop();
         lexer.next();
         Ok(Rc::new(StatementList {
             statements: statements,
-            stack_size: size
+            stack_size: size,
         }))
     }
 
