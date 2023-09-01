@@ -19,6 +19,7 @@ impl ASTNode for TypeExpression {
             Token::INT => DataType::INT,
             Token::CHAR => DataType::CHAR,
             Token::LONG => DataType::LONG,
+            Token::VOID => DataType::VOID,
             _ => panic!("Was not able to parse data type of type expression!")
         };
         if lexer.peek() == Token::MUL {

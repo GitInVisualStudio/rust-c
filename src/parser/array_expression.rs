@@ -98,6 +98,7 @@ impl ASTNode for ArrayExpression {
             }
             ArrayExpression::StringLiteral { label, string } => {
                 gen.emit_string(*label, string)?;
+                Reg::set_size(8);
                 gen.emit(&format!("\tlea \t.LC{}(%rip), {}\n", label, Reg::current()))
             }
         }

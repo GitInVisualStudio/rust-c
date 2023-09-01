@@ -5,7 +5,8 @@ pub enum DataType {
     LONG,
     INT,
     CHAR,
-    PTR(Rc<DataType>)
+    VOID,
+    PTR(Rc<DataType>),
 }
 
 #[derive(Debug)]
@@ -43,21 +44,23 @@ impl DataType {
             DataType::INT => 4,
             DataType::CHAR => 1,
             DataType::LONG => 8,
-            DataType::PTR(_) => 8
+            DataType::PTR(_) => 8,
+            DataType::VOID => 0,
         }
     }
 
-    pub fn can_convert(&self, other: DataType) -> bool {
-        match (self, other) {
-            (_, DataType::PTR(_)) => false,
-            (DataType::PTR(_), _) => false,
-            _ => true
+    pub fn can_convert(&self, to: DataType) -> bool {
+        match (self, to) {
+            _ => true,
         }
     }
 
-    pub fn can_operate(&self, other: DataType) -> bool {
-        match (self, other) {
-            _ => true
-        }        
+    pub fn can_operate(&self, to: DataType) -> bool {
+        match (self, to) {
+            (DataType::VOID, DataType::VOID) => false,
+            (DataType::VOID, _) => false,
+            (_, DataType::VOID) => false,
+            _ => true,
+        }
     }
 }

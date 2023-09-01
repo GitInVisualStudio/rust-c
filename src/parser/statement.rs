@@ -80,7 +80,7 @@ impl ASTNode for Statement {
                 let statement = Rc::new(Statement::WhileStatement(statement));
                 return Ok(statement);
             }
-            Token::INT | Token::CHAR | Token::LONG => {
+            Token::INT | Token::CHAR | Token::LONG | Token::VOID => {
                 Self::parse_variable_declaration(lexer, scope)
             }
             Token::SEMIC => Ok(Rc::new(Self::Empty)),
@@ -182,11 +182,10 @@ impl Statement {
             Token::ASSIGN => {
                 lexer.next();
                 let expression = Expression::parse(lexer, scope)?;
-                if expression.data_type() != var.data_type()
-                    && !var.data_type().can_convert(expression.data_type())
+                if !expression.data_type().can_convert(var.data_type())
                 {
                     lexer.error(format!(
-                        "cannot convert for {:?} to {:?}!",
+                        "cannot convert from {:?} to {:?}!",
                         expression.data_type(),
                         var.data_type()
                     ))?
@@ -205,6 +204,11 @@ impl Statement {
 
     fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         lexer.expect(Token::RETURN)?;
+        // if lexer.peek() == Token::SEMIC {
+        //     return Ok(Rc::new(Statement::Return {
+        //         expression: None,
+        //     }))
+        // }
         let expression = Expression::parse(lexer, scope)?;
         Ok(Rc::new(Statement::Return {
             expression: Some(expression),

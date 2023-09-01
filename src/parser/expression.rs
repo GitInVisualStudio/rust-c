@@ -36,6 +36,7 @@ pub enum UnaryOps {
     REF,
     DEREF,
     COMPLEMENT,
+    CAST,
 }
 
 #[derive(Debug)]
@@ -139,13 +140,17 @@ impl ASTNode for Expression {
                     _ => panic!("should not happen!"),
                 },
                 UnaryOps::DEREF => {
+                    let base_data_type = match expression.data_type() {
+                        DataType::PTR(x) => x,
+                        _ => panic!("cannot get base data-type from index"),
+                    };
                     expression.generate(gen)?;
-                    let size = Reg::get_size();
                     Reg::set_size(8);
                     let address = format!("{}", Reg::current());
-                    Reg::set_size(size);
+                    Reg::set_size(base_data_type.size());
                     gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
                 }
+                UnaryOps::CAST => expression.generate(gen),
             },
             Expression::BinaryExpression {
                 first,
@@ -193,14 +198,21 @@ impl ASTNode for Expression {
             Expression::FunctionCall(call) => call.generate(gen),
             Expression::ArrayExpressions(arr) => arr.generate(gen),
             Expression::Indexing { index, operand } => {
+                let base_data_type = match operand.data_type() {
+                    DataType::PTR(x) => x,
+                    _ => panic!("cannot get base data-type from index"),
+                };
+
                 index.generate(gen)?;
-                let index_reg = Reg::push();
+                let index = Reg::push();
                 operand.generate(gen)?;
-                let addr_reg = Reg::pop();
-                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index_reg)?;
+                let address = Reg::pop();
+                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                 Reg::set_size(8);
-                gen.add(index_reg, addr_reg)?;
-                gen.emit(&format!("\tmov \t({}),{}\n", addr_reg, Reg::current()))
+                gen.add(index, address)?;
+                let address = format!("{}", address);
+                Reg::set_size(base_data_type.size());
+                gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
             }
             Expression::Assignment(assignment) => assignment.generate(gen),
         }
@@ -352,9 +364,12 @@ impl Expression {
 
     fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::SUB | Token::LOGNEG | Token::MUL | Token::REF | Token::COMPLEMENT => Self::parse_unary(lexer, scope),
+            Token::SUB | Token::LOGNEG | Token::MUL | Token::REF | Token::COMPLEMENT => {
+                Self::parse_unary(lexer, scope)
+            }
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
+
                 let result = Self::parse_expressions(lexer, scope);
                 lexer.expect(Token::RPAREN)?;
                 result
@@ -495,7 +510,9 @@ impl Expression {
                 expression,
                 operation: op,
             } => match op {
-                UnaryOps::COMPLEMENT | UnaryOps::NEG | UnaryOps::LOGNEG => expression.data_type(),
+                UnaryOps::COMPLEMENT | UnaryOps::NEG | UnaryOps::LOGNEG | UnaryOps::CAST => {
+                    expression.data_type()
+                }
                 UnaryOps::REF => DataType::PTR(Rc::new(expression.data_type())),
                 UnaryOps::DEREF => match expression.data_type() {
                     DataType::PTR(x) => x.as_ref().clone(),
