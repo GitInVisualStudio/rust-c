@@ -4,6 +4,7 @@ use std::rc::Rc;
 use super::function::Function;
 use super::generator::Generator;
 use super::scope::Scope;
+use super::statement::Statement;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
@@ -20,7 +21,11 @@ impl ASTNode for Program {
     {
         let mut funcs: Vec<Rc<dyn ASTNode>> = Vec::new();
         while lexer.peek() != Token::EOF {
-            funcs.push(Function::parse(lexer, scope)?)
+            let child: Rc<dyn ASTNode> = match lexer.peek() {
+                Token::TYPEDEF => Statement::parse(lexer, scope)?,
+                _ => Function::parse(lexer, scope)?,
+            };
+            funcs.push(child)
         }
         lexer.expect(Token::EOF)?;
         Ok(Rc::new(Program { functions: funcs }))

@@ -1,27 +1,9 @@
-void* malloc(long size);
-void free(void* ptr);
-void putchar(char c);
-
-void print_string(char* s) {
-    while (*s) {
-        putchar(*s);
-        s = s + 1;
-    }
-    return;
-}
-
-int main()
-{
-    int nums[] = malloc(4 * 10);
-    for (int i = 0; i < 10; i = i+1) {
-        nums[i] = i;
-    }
-    for (int i = 0; i < 10; i = i+1) {
-        char* string = "Number: ";
-        print_string(string);
-        putchar(nums[i] + '0');
-        putchar(10);
-    }
-    free(nums);
+void main() {
+    struct test {
+        int a;
+        int b;
+    } test;
+    test.a = 5;
+    test.b = 3;
     return 0;
 }

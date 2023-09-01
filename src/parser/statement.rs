@@ -8,6 +8,7 @@ use super::generator::Generator;
 use super::if_statement::IfStatement;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
+use super::type_definition::TypeDefinition;
 use super::type_expression::TypeExpression;
 use super::variable::{DataType, Variable};
 use super::while_statement::WhileStatement;
@@ -31,6 +32,7 @@ pub enum Statement {
     IfStatement(Rc<IfStatement>),
     ForStatement(Rc<ForStatement>),
     WhileStatement(Rc<WhileStatement>),
+    TypeDefinition(Rc<TypeDefinition>),
     Continue {
         label_index: usize,
     },
@@ -83,6 +85,9 @@ impl ASTNode for Statement {
             Token::INT | Token::CHAR | Token::LONG | Token::VOID => {
                 Self::parse_variable_declaration(lexer, scope)
             }
+            Token::TYPEDEF => Ok(Rc::new(Self::TypeDefinition(TypeDefinition::parse(
+                lexer, scope,
+            )?))),
             Token::SEMIC => Ok(Rc::new(Self::Empty)),
             Token::LCURL => {
                 return Ok(Rc::new(Self::StatementList(StatementList::parse(
@@ -146,6 +151,7 @@ impl ASTNode for Statement {
                 Ok(0)
             }
             Statement::StatementList(list) => list.generate(gen),
+            Statement::TypeDefinition(typedef) => typedef.generate(gen),
         }
     }
 }
@@ -182,8 +188,7 @@ impl Statement {
             Token::ASSIGN => {
                 lexer.next();
                 let expression = Expression::parse(lexer, scope)?;
-                if !expression.data_type().can_convert(var.data_type())
-                {
+                if !expression.data_type().can_convert(var.data_type()) {
                     lexer.error(format!(
                         "cannot convert from {:?} to {:?}!",
                         expression.data_type(),

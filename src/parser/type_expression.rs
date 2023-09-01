@@ -1,6 +1,11 @@
 use std::rc::Rc;
 
-use crate::{parser::{variable::DataType, ASTNode}, lexer::tokens::Token};
+use crate::{
+    lexer::tokens::Token,
+    parser::{type_definition::TypeDefinition, variable::DataType, ASTNode},
+};
+
+use super::scope::IScope;
 
 #[derive(Debug)]
 pub struct TypeExpression {
@@ -10,7 +15,7 @@ pub struct TypeExpression {
 impl ASTNode for TypeExpression {
     fn parse(
         lexer: &mut crate::lexer::Lexer,
-        _: &mut crate::parser::scope::Scope,
+        scope: &mut crate::parser::scope::Scope,
     ) -> Result<std::rc::Rc<Self>, crate::lexer::LexerError>
     where
         Self: Sized,
@@ -20,7 +25,18 @@ impl ASTNode for TypeExpression {
             Token::CHAR => DataType::CHAR,
             Token::LONG => DataType::LONG,
             Token::VOID => DataType::VOID,
-            _ => panic!("Was not able to parse data type of type expression!")
+            Token::IDENT => {
+                let name = lexer.last_string().to_string();
+                let typedef: Option<&TypeDefinition> = scope.get(&name);
+                if typedef.is_none() {
+                    return lexer.error(format!("was not able to find type: {}", name));
+                }
+                typedef.unwrap().data_type()
+            }
+            x => panic!(
+                "Was not able to parse data type of type expression! {:?}",
+                x
+            ),
         };
         if lexer.peek() == Token::MUL {
             lexer.next();

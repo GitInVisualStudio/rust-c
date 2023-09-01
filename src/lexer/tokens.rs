@@ -9,6 +9,8 @@ pub enum Token {
     RPAREN,
     RETURN,
     INTLITERAL,
+    INC,
+    DEC,
     ADD,
     SUB,
     MUL,
@@ -39,6 +41,7 @@ pub enum Token {
     RBRACE,
     STRINGLIT,
     COMPLEMENT,
+    TYPEDEF,
     IDENT,
     EOF,
     ERR,
@@ -86,8 +89,9 @@ impl Token {
             36 => Token::RBRACE,    
             37 => Token::STRINGLIT,    
             38 => Token::COMPLEMENT,
-            39 => Token::IDENT,
-            40 => Token::EOF,
+            39 => Token::TYPEDEF,
+            40 => Token::IDENT,
+            41 => Token::EOF,
             _ => Token::ERR
         }
     }
@@ -133,5 +137,6 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "\\]",
     "\"[^\"]*\"",
     "~",
+    "typedef",
     "\\w+",
 ];

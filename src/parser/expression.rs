@@ -369,7 +369,6 @@ impl Expression {
             }
             Token::LPAREN => {
                 lexer.expect(Token::LPAREN)?;
-
                 let result = Self::parse_expressions(lexer, scope);
                 lexer.expect(Token::RPAREN)?;
                 result
