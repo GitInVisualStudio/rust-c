@@ -30,7 +30,7 @@ impl ASTNode for TypeExpression {
             Token::STRUCT => Self::parse_struct(lexer, scope)?,
             Token::IDENT => {
                 let name = lexer.last_string().to_string();
-                let typedef: Option<&TypeDefinition> = scope.get(&name);
+                let typedef: Option<Rc<TypeDefinition>> = scope.get(&name);
                 if typedef.is_none() {
                     return lexer.error(format!("was not able to find type: {}", name));
                 }
@@ -68,29 +68,41 @@ impl TypeExpression {
 
     fn parse_struct(lexer: &mut Lexer, scope: &mut Scope) -> Result<DataType, LexerError> {
         let name = lexer.expect(Token::IDENT)?.to_string();
-        lexer.expect(Token::LCURL)?;
-        let mut fields: Vec<Variable> = Vec::new();
-        let mut offset = 0;
-        while lexer.peek() != Token::RCURL {
-            let type_expression = TypeExpression::parse(lexer, scope)?;
-            let name = lexer.expect(Token::IDENT)?.to_string();
-            let field = Variable::new(&name, type_expression.data_type(), offset);
-            if fields.iter().find(|x| x.name() == &name).is_some() {
-                return lexer.error(format!("Field with name {} already exists!", name));
+        match lexer.peek() {
+            Token::LCURL => {
+                lexer.expect(Token::LCURL)?;
+                let mut fields: Vec<Variable> = Vec::new();
+                let mut offset = 0;
+                while lexer.peek() != Token::RCURL {
+                    let type_expression = TypeExpression::parse(lexer, scope)?;
+                    let name = lexer.expect(Token::IDENT)?.to_string();
+                    let field = Variable::new(&name, type_expression.data_type(), offset);
+                    if fields.iter().find(|x| x.name() == &name).is_some() {
+                        return lexer.error(format!("Field with name {} already exists!", name));
+                    }
+                    offset += field.data_type().size();
+                    fields.push(field);
+                    lexer.expect(Token::SEMIC)?;
+                }
+                lexer.next();
+
+                let contains: Option<Rc<Struct>> = scope.get(&name);
+                if let Some(_) = contains {
+                    return lexer.error(format!("Struct '{}' already defined!", name));
+                }
+
+                let result = Rc::new(Struct::new(name, fields));
+                scope.add(result.clone());
+                Ok(DataType::STRUCT(result))
             }
-            offset += field.data_type().size();
-            fields.push(field);
-            lexer.expect(Token::SEMIC)?;
+            Token::IDENT => {
+                let contains: Option<Rc<Struct>> = scope.get(&name);
+                if let Some(x) = contains {
+                    return Ok(DataType::STRUCT(x));
+                }
+                lexer.error(format!("No struct wit name '{}' found!", name))
+            }
+            _ => lexer.error("cannot pares struct!".to_string()),
         }
-        lexer.next();
-
-        let contains: Option<&Struct> = scope.get(&name);
-        if let Some(_) = contains {
-            return lexer.error(format!("Struct '{}' already defined!", name));
-        }
-
-        let result = Rc::new(Struct::new(name, fields));
-        scope.add(result.clone());
-        Ok(DataType::STRUCT(result))
     }
 }

@@ -3,11 +3,12 @@ use std::rc::Rc;
 use crate::lexer::{tokens::Token, Lexer};
 
 use super::{
+    data_type::DataType,
     expression::Expression,
     function::Function,
     generator::register::Reg,
     scope::{IScope, Scope},
-    ASTNode, data_type::DataType,
+    ASTNode,
 };
 
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub struct FunctionCall {
     name: String,
     parameter: Vec<Rc<Expression>>,
     data_types: Vec<DataType>,
-    return_type: DataType
+    return_type: DataType,
 }
 
 impl ASTNode for FunctionCall {
@@ -66,12 +67,12 @@ impl FunctionCall {
         lexer: &mut Lexer,
         scope: &mut Scope,
     ) -> Result<Rc<Self>, crate::lexer::LexerError> {
-        let function: Option<&Function> = scope.get(&name);
+        let function: Option<Rc<Function>> = scope.get(&name);
         if let None = function {
             return lexer.error(format!("Cannot call undefined function {}!", name));
         }
 
-        let return_type = function.unwrap().return_type();
+        let return_type = function.clone().unwrap().return_type();
         let data_types: Vec<DataType> = function
             .unwrap()
             .parameter()
@@ -108,7 +109,7 @@ impl FunctionCall {
             name: name,
             parameter: parameter,
             data_types: data_types,
-            return_type: return_type
+            return_type: return_type,
         }))
     }
 

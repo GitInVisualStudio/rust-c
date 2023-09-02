@@ -95,7 +95,7 @@ impl ASTNode for Function {
 impl Function {
     fn valid(&self, lexer: &mut Lexer, scope: &mut Scope) -> Result<bool, LexerError> {
         // check if function already exists
-        let contains: Option<&Function> = scope.get(&self.name);
+        let contains: Option<Rc<Function>> = scope.get(&self.name);
         if let Some(x) = contains {
             if x.return_type != self.return_type {
                 return lexer.error(format!(
@@ -127,7 +127,7 @@ impl Function {
         let var = Variable::new(&name, type_expression.data_type(), scope.stack_size());
         let var = Rc::new(var);
 
-        let contains: Option<&Variable> = scope.get(&name);
+        let contains: Option<Rc<Variable>> = scope.get(&name);
         if let Some(_) = contains {
             return lexer.error(format!(
                 "Parameter with name {} already declared in scope!",

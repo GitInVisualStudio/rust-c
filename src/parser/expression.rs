@@ -340,7 +340,7 @@ impl Expression {
                         name, lexer, scope,
                     )?))),
                     _ => {
-                        let contains: Option<&Variable> = scope.get(&name);
+                        let contains: Option<Rc<Variable>> = scope.get(&name);
                         if let None = contains {
                             return lexer.error(format!("Variable {} not found!", name));
                         }
@@ -410,11 +410,51 @@ impl Expression {
         Ok(operand)
     }
 
+    fn parse_arrow_access(
+        mut operand: Rc<Expression>,
+        lexer: &mut Lexer,
+        _: &mut Scope,
+    ) -> Result<Rc<Self>, LexerError> {
+        while lexer.peek() == Token::ARROW {
+            lexer.next();
+            let data_type = operand.data_type();
+            match data_type {
+                DataType::PTR(data_type) => {
+                    operand = Rc::new(Self::Unary {
+                        expression: operand,
+                        operation: UnaryOps::DEREF,
+                    });
+                    match data_type.as_ref() {
+                        DataType::STRUCT(data_type) => {
+                            let name = lexer.expect(Token::IDENT)?.to_string();
+                            match data_type.get(&name) {
+                                Some(var) => {
+                                    operand = Rc::new(Self::FieldAccress {
+                                        offset: var.offset() - var.data_type().size(),
+                                        data_type: var.data_type(),
+                                        operand: operand,
+                                    })
+                                }
+                                None => {
+                                    lexer.error(format!("No field {} for {:?}", name, data_type))?
+                                }
+                            };
+                        }
+                        x => lexer.error(format!("Cannot access field for datatype: {:?}", x))?,
+                    }
+                }
+                _ => lexer.error("cannot deref non pointer expression!".to_string())?,
+            };
+        }
+        Ok(operand)
+    }
+
     fn parse_postfix(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         let result = Self::parse_literal(lexer, scope)?;
         match lexer.peek() {
             Token::LBRACE => Self::parse_indexing(result, lexer, scope),
             Token::DOT => Self::parse_field_access(result, lexer, scope),
+            Token::ARROW => Self::parse_arrow_access(result, lexer, scope),
             _ => Ok(result),
         }
     }
