@@ -33,6 +33,9 @@ impl DataType {
 
     pub fn can_convert(&self, to: DataType) -> bool {
         match (self, to) {
+            (DataType::STRUCT(x), DataType::STRUCT(y)) if *x == y => false,
+            (_, DataType::STRUCT(_)) => false,
+            (DataType::STRUCT(_), _) => false,
             _ => true,
         }
     }
@@ -42,6 +45,8 @@ impl DataType {
             (DataType::VOID, DataType::VOID) => false,
             (DataType::VOID, _) => false,
             (_, DataType::VOID) => false,
+            (_, DataType::STRUCT(_)) => false,
+            (DataType::STRUCT(_), _) => false,
             _ => true,
         }
     }

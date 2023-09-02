@@ -245,7 +245,10 @@ impl ASTNode for Expression {
                 data_type,
                 operand,
             } => match data_type {
-                DataType::STRUCT(_) => todo!(),
+                DataType::STRUCT(_) => {
+                    operand.generate(gen)?;
+                    gen.add(Reg::IMMEDIATE(*offset as i64), Reg::current())
+                }
                 data_type => {
                     operand.generate(gen)?;
                     gen.add(Reg::IMMEDIATE(*offset as i64), Reg::current())?;
