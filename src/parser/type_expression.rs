@@ -36,10 +36,10 @@ impl ASTNode for TypeExpression {
                 }
                 typedef.unwrap().data_type()
             }
-            x => panic!(
+            x => lexer.error(format!(
                 "Was not able to parse data type of type expression! {:?}",
-                x
-            ),
+                x,
+            ))?,
         };
         if lexer.peek() == Token::MUL {
             lexer.next();

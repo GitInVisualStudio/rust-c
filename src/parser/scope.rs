@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
-use super::{function::Function, type_definition::TypeDefinition, variable::Variable, data_type::Struct};
+use super::{
+    data_type::Struct, function::Function, type_definition::TypeDefinition, variable::Variable,
+};
 
 #[derive(Debug)]
 pub struct Scope {
@@ -113,5 +115,9 @@ impl Scope {
 
     pub fn add_stack(&mut self, size: usize) {
         self.stack_offset += size
+    }
+
+    pub fn get_structs(&self) -> &Vec<Rc<Struct>> {
+        &self.structs
     }
 }

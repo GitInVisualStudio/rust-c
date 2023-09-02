@@ -31,8 +31,7 @@ int push(LinkedList *list, int value)
     return 0;
 }
 
-int main()
-{
+int test() {
     LinkedList list;
     list.first = 0;
     list.last = 0;
@@ -49,6 +48,11 @@ int main()
         free(current);
         current = next;
     }
+    return 0;
+}
 
+int main()
+{
+    test();
     return 0;
 }

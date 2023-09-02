@@ -34,8 +34,12 @@ impl DataType {
     pub fn can_convert(&self, to: DataType) -> bool {
         match (self, to) {
             (DataType::STRUCT(x), DataType::STRUCT(y)) if *x == y => true,
+            (DataType::PTR(x), DataType::PTR(y)) if *x.as_ref() == *y.as_ref() => true,
+            (DataType::PTR(x), DataType::PTR(_)) if *x.as_ref() == DataType::VOID => true,
+            (DataType::PTR(_), DataType::INT) => true,
             (_, DataType::STRUCT(_)) => false,
             (DataType::STRUCT(_), _) => false,
+            (DataType::PTR(_), _) => false,
             _ => true,
         }
     }
@@ -71,5 +75,9 @@ impl Struct {
 
     pub fn get(&self, name: &str) -> Option<&Variable> {
         self.fields.iter().find(|x| x.name() == name)
+    }
+
+    pub fn fields_equal(&self, other: &Vec<Variable>) -> bool {
+        &self.fields == other
     }
 }

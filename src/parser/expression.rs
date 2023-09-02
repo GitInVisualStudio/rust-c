@@ -7,6 +7,7 @@ use super::data_type::DataType;
 use super::function_call::FunctionCall;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
+use super::struct_expression::SturctExpression;
 use super::type_expression::TypeExpression;
 use super::variable::Variable;
 use super::ASTNode;
@@ -47,7 +48,8 @@ pub enum Expression {
     IntLiteral(i32),
     CharLiteral(u8),
     FunctionCall(Rc<FunctionCall>),
-    ArrayExpressions(Rc<ArrayExpression>),
+    ArrayExpression(Rc<ArrayExpression>),
+    StructExpresion(Rc<SturctExpression>),
     Assignment(Rc<Assignment>),
     TypeExpression(Rc<TypeExpression>),
     FieldAccress {
@@ -220,7 +222,7 @@ impl ASTNode for Expression {
                 Ok(0)
             }
             Expression::FunctionCall(call) => call.generate(gen),
-            Expression::ArrayExpressions(arr) => arr.generate(gen),
+            Expression::ArrayExpression(arr) => arr.generate(gen),
             Expression::Indexing { index, operand } => {
                 let base_data_type = match operand.data_type() {
                     DataType::PTR(x) => x,
@@ -257,6 +259,7 @@ impl ASTNode for Expression {
                     gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
                 }
             },
+            Expression::StructExpresion(expr) => expr.generate(gen),
         }
     }
 }
@@ -304,9 +307,20 @@ impl Expression {
 
     fn parse_literal(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         match lexer.peek() {
-            Token::LCURL | Token::STRINGLIT => Ok(Rc::new(Self::ArrayExpressions(
-                ArrayExpression::parse(lexer, scope)?,
-            ))),
+            Token::LCURL => {
+                lexer.next();
+                match lexer.peek() {
+                    Token::DOT => Ok(Rc::new(Self::StructExpresion(SturctExpression::parse(
+                        lexer, scope,
+                    )?))),
+                    _ => Ok(Rc::new(Self::ArrayExpression(ArrayExpression::parse(
+                        lexer, scope,
+                    )?))),
+                }
+            }
+            Token::STRINGLIT => Ok(Rc::new(Self::ArrayExpression(ArrayExpression::parse(
+                lexer, scope,
+            )?))),
             Token::INTLITERAL => {
                 let value: i32 = lexer
                     .expect(Token::INTLITERAL)?
@@ -654,7 +668,7 @@ impl Expression {
                 }
             }
             Expression::FunctionCall(call) => call.return_type(),
-            Expression::ArrayExpressions(arr) => arr.data_type(),
+            Expression::ArrayExpression(arr) => arr.data_type(),
             Expression::Indexing { index: _, operand } => match operand.data_type() {
                 DataType::PTR(x) => x.as_ref().clone(),
                 _ => panic!("cannot deref non pointer data-type expression!"),
@@ -666,6 +680,7 @@ impl Expression {
                 data_type,
                 operand: _,
             } => data_type.clone(),
+            Expression::StructExpresion(x) => x.data_type(),
         }
     }
 }

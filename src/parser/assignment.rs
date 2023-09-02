@@ -216,7 +216,7 @@ impl Assignment {
                 let current = format!("{}", Reg::current());
                 Reg::set_size(8);
                 gen.emit(&format!(
-                    "\tmovd\t{}({}), {}\n",
+                    "\tmov \t{}({}), {}\n",
                     total_size - bytes_to_copy,
                     from,
                     current

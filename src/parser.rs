@@ -15,6 +15,7 @@ pub mod array_expression;
 pub mod assignment;
 pub mod type_definition;
 pub mod data_type;
+pub mod struct_expression;
 
 use crate::lexer::{Lexer, LexerError};
 use std::{fmt::Debug, io::Error, rc::Rc};

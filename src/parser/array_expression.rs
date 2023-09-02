@@ -38,9 +38,8 @@ impl ASTNode for ArrayExpression {
                     string: string.to_string(),
                 }
             }
-            Token::LCURL => {
+            _ => {
                 let mut expressions: Vec<Rc<Expression>> = Vec::new();
-                lexer.expect(Token::LCURL)?;
                 if lexer.peek() == Token::RCURL {
                     lexer.error("Cannot create empty array".to_string())?;
                 }
@@ -70,7 +69,6 @@ impl ASTNode for ArrayExpression {
                     base_type: base_type,
                 }
             }
-            _ => panic!("cannot parse array expression!"),
         }))
     }
 
