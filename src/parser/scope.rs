@@ -1,12 +1,13 @@
 use std::rc::Rc;
 
-use super::{function::Function, type_definition::TypeDefinition, variable::Variable};
+use super::{function::Function, type_definition::TypeDefinition, variable::Variable, data_type::Struct};
 
 #[derive(Debug)]
 pub struct Scope {
     functions: Vec<Vec<Rc<Function>>>,
     variables: Vec<Vec<Rc<Variable>>>,
     typedefs: Vec<Rc<TypeDefinition>>,
+    structs: Vec<Rc<Struct>>,
     stack_offset: usize,
 }
 
@@ -69,12 +70,26 @@ impl IScope<TypeDefinition> for Scope {
     }
 }
 
+impl IScope<Struct> for Scope {
+    fn get(&self, name: &str) -> Option<&Struct> {
+        if let Some(x) = self.structs.iter().find(|x| x.name() == name) {
+            return Some(x);
+        }
+        None
+    }
+
+    fn add(&mut self, value: Rc<Struct>) {
+        self.structs.push(value);
+    }
+}
+
 impl Scope {
     pub fn new() -> Scope {
         Scope {
             functions: Vec::new(),
             variables: Vec::new(),
             typedefs: Vec::new(),
+            structs: Vec::new(),
             stack_offset: 0,
         }
     }

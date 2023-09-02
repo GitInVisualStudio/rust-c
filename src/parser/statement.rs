@@ -1,6 +1,7 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::data_type::{DataType, Struct};
 use super::expression::Expression;
 use super::for_statement::ForStatement;
 use super::generator::register::Reg;
@@ -10,7 +11,7 @@ use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
 use super::type_definition::TypeDefinition;
 use super::type_expression::TypeExpression;
-use super::variable::{DataType, Variable};
+use super::variable::Variable;
 use super::while_statement::WhileStatement;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
@@ -84,6 +85,19 @@ impl ASTNode for Statement {
             }
             Token::INT | Token::CHAR | Token::LONG | Token::VOID => {
                 Self::parse_variable_declaration(lexer, scope)
+            }
+            Token::IDENT => {
+                lexer.next();
+                let contains: Option<&Struct> = scope.get(lexer.last_string());
+                if let Some(_) = contains {
+                    lexer.set_back(lexer.last_string().len());
+                    Self::parse_variable_declaration(lexer, scope)
+                } else {
+                    lexer.set_back(lexer.last_string().len());
+                    Ok(Rc::new(Self::SingleExpression {
+                        expression: Expression::parse(lexer, scope)?,
+                    }))
+                }
             }
             Token::TYPEDEF => Ok(Rc::new(Self::TypeDefinition(TypeDefinition::parse(
                 lexer, scope,

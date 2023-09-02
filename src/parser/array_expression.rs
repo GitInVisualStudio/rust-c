@@ -5,7 +5,7 @@ use crate::{
     parser::generator::Generator,
 };
 
-use super::{expression::Expression, generator::register::Reg, variable::DataType, ASTNode};
+use super::{expression::Expression, generator::register::Reg, ASTNode, data_type::DataType};
 
 #[derive(Debug)]
 pub enum ArrayExpression {

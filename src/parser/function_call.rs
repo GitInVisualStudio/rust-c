@@ -7,8 +7,7 @@ use super::{
     function::Function,
     generator::register::Reg,
     scope::{IScope, Scope},
-    variable::DataType,
-    ASTNode,
+    ASTNode, data_type::DataType,
 };
 
 #[derive(Debug)]

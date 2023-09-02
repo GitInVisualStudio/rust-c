@@ -1,12 +1,13 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::data_type::DataType;
 use super::generator::register::Reg;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::statement_list::StatementList;
 use super::type_expression::TypeExpression;
-use super::variable::{DataType, Variable};
+use super::variable::Variable;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};

@@ -119,6 +119,10 @@ impl Lexer {
         &self.content[self.last_index..self.index]
     }
 
+    pub fn set_back(&mut self, index: usize) {
+        self.index -= index;
+    } 
+
     pub fn peek(&mut self) -> Token {
         let last_index = self.last_index;
         let result = self.next();

@@ -1,11 +1,16 @@
 use std::rc::Rc;
 
 use crate::{
-    lexer::tokens::Token,
-    parser::{type_definition::TypeDefinition, variable::DataType, ASTNode},
+    lexer::{tokens::Token, Lexer, LexerError},
+    parser::{
+        data_type::{DataType, Struct},
+        type_definition::TypeDefinition,
+        variable::Variable,
+        ASTNode,
+    },
 };
 
-use super::scope::IScope;
+use super::scope::{IScope, Scope};
 
 #[derive(Debug)]
 pub struct TypeExpression {
@@ -13,10 +18,7 @@ pub struct TypeExpression {
 }
 
 impl ASTNode for TypeExpression {
-    fn parse(
-        lexer: &mut crate::lexer::Lexer,
-        scope: &mut crate::parser::scope::Scope,
-    ) -> Result<std::rc::Rc<Self>, crate::lexer::LexerError>
+    fn parse(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError>
     where
         Self: Sized,
     {
@@ -25,6 +27,7 @@ impl ASTNode for TypeExpression {
             Token::CHAR => DataType::CHAR,
             Token::LONG => DataType::LONG,
             Token::VOID => DataType::VOID,
+            Token::STRUCT => Self::parse_struct(lexer, scope)?,
             Token::IDENT => {
                 let name = lexer.last_string().to_string();
                 let typedef: Option<&TypeDefinition> = scope.get(&name);
@@ -54,12 +57,40 @@ impl ASTNode for TypeExpression {
         &self,
         _: &mut crate::parser::generator::Generator,
     ) -> Result<usize, std::io::Error> {
-        todo!()
+        Ok(0)
     }
 }
 
 impl TypeExpression {
     pub fn data_type(&self) -> DataType {
         self.data_type.clone()
+    }
+
+    fn parse_struct(lexer: &mut Lexer, scope: &mut Scope) -> Result<DataType, LexerError> {
+        let name = lexer.expect(Token::IDENT)?.to_string();
+        lexer.expect(Token::LCURL)?;
+        let mut fields: Vec<Variable> = Vec::new();
+        let mut offset = 0;
+        while lexer.peek() != Token::RCURL {
+            let type_expression = TypeExpression::parse(lexer, scope)?;
+            let name = lexer.expect(Token::IDENT)?.to_string();
+            let field = Variable::new(&name, type_expression.data_type(), offset);
+            if fields.iter().find(|x| x.name() == &name).is_some() {
+                return lexer.error(format!("Field with name {} already exists!", name));
+            }
+            offset += field.data_type().size();
+            fields.push(field);
+            lexer.expect(Token::SEMIC)?;
+        }
+        lexer.next();
+
+        let contains: Option<&Struct> = scope.get(&name);
+        if let Some(_) = contains {
+            return lexer.error(format!("Struct '{}' already defined!", name));
+        }
+
+        let result = Rc::new(Struct::new(name, fields));
+        scope.add(result.clone());
+        Ok(DataType::STRUCT(result))
     }
 }

@@ -3,10 +3,12 @@ use std::rc::Rc;
 
 use super::array_expression::ArrayExpression;
 use super::assignment::Assignment;
+use super::data_type::DataType;
 use super::function_call::FunctionCall;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
-use super::variable::{DataType, Variable};
+use super::type_expression::TypeExpression;
+use super::variable::Variable;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
@@ -47,6 +49,12 @@ pub enum Expression {
     FunctionCall(Rc<FunctionCall>),
     ArrayExpressions(Rc<ArrayExpression>),
     Assignment(Rc<Assignment>),
+    TypeExpression(Rc<TypeExpression>),
+    FieldAccress {
+        offset: usize,
+        data_type: DataType,
+        operand: Rc<Expression>,
+    },
     Indexing {
         index: Rc<Expression>,
         operand: Rc<Expression>,
@@ -91,15 +99,26 @@ impl ASTNode for Expression {
             Expression::NamedVariable {
                 stack_offset,
                 data_type,
-            } => {
-                Reg::set_size(data_type.size());
-                gen.mov(
-                    Reg::STACK {
-                        offset: *stack_offset,
-                    },
-                    Reg::current(),
-                )
-            }
+            } => match data_type {
+                DataType::STRUCT(_) => {
+                    Reg::set_size(8);
+                    gen.lea(
+                        Reg::STACK {
+                            offset: *stack_offset,
+                        },
+                        Reg::current(),
+                    )
+                }
+                x => {
+                    Reg::set_size(x.size());
+                    gen.mov(
+                        Reg::STACK {
+                            offset: *stack_offset,
+                        },
+                        Reg::current(),
+                    )
+                }
+            },
             Expression::Unary {
                 expression,
                 operation,
@@ -144,11 +163,16 @@ impl ASTNode for Expression {
                         DataType::PTR(x) => x,
                         _ => panic!("cannot get base data-type from index"),
                     };
-                    expression.generate(gen)?;
-                    Reg::set_size(8);
-                    let address = format!("{}", Reg::current());
-                    Reg::set_size(base_data_type.size());
-                    gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                    match base_data_type.as_ref() {
+                        DataType::STRUCT(_) => expression.generate(gen),
+                        _ => {
+                            expression.generate(gen)?;
+                            Reg::set_size(8);
+                            let address = format!("{}", Reg::current());
+                            Reg::set_size(base_data_type.size());
+                            gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                        }
+                    }
                 }
                 UnaryOps::CAST => expression.generate(gen),
             },
@@ -215,6 +239,21 @@ impl ASTNode for Expression {
                 gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
             }
             Expression::Assignment(assignment) => assignment.generate(gen),
+            Expression::TypeExpression(expression) => expression.generate(gen),
+            Expression::FieldAccress {
+                offset,
+                data_type,
+                operand,
+            } => match data_type {
+                DataType::STRUCT(_) => todo!(),
+                data_type => {
+                    operand.generate(gen)?;
+                    gen.add(Reg::IMMEDIATE(*offset as i64), Reg::current())?;
+                    let address = format!("{}", Reg::current());
+                    Reg::set_size(data_type.size());
+                    gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                }
+            },
         }
     }
 }
@@ -311,22 +350,70 @@ impl Expression {
                     }
                 }
             }
-            token => panic!("No literal for {:?}", token),
+            Token::LPAREN => {
+                lexer.expect(Token::LPAREN)?;
+                let result = Self::parse_expressions(lexer, scope);
+                lexer.expect(Token::RPAREN)?;
+                result
+            }
+            _ => Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
+                lexer, scope,
+            )?))),
         }
     }
 
-    fn parse_post_fix(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        let mut result = Self::parse_literal(lexer, scope)?;
+    fn parse_indexing(
+        mut operand: Rc<Expression>,
+        lexer: &mut Lexer,
+        scope: &mut Scope,
+    ) -> Result<Rc<Self>, LexerError> {
         while lexer.peek() == Token::LBRACE {
             lexer.next();
             let expression = Self::parse(lexer, scope)?;
             lexer.expect(Token::RBRACE)?;
-            result = Rc::new(Self::Indexing {
+            operand = Rc::new(Self::Indexing {
                 index: expression,
-                operand: result,
+                operand: operand,
             });
         }
-        Ok(result)
+        Ok(operand)
+    }
+
+    fn parse_field_access(
+        mut operand: Rc<Expression>,
+        lexer: &mut Lexer,
+        _: &mut Scope,
+    ) -> Result<Rc<Self>, LexerError> {
+        while lexer.peek() == Token::DOT {
+            lexer.next();
+            let data_type = operand.data_type();
+            match data_type {
+                DataType::STRUCT(data_type) => {
+                    let name = lexer.expect(Token::IDENT)?.to_string();
+                    match data_type.get(&name) {
+                        Some(var) => {
+                            operand = Rc::new(Self::FieldAccress {
+                                offset: var.offset() - var.data_type().size(),
+                                data_type: var.data_type(),
+                                operand: operand,
+                            })
+                        }
+                        None => lexer.error(format!("No field {} for {:?}", name, data_type))?,
+                    };
+                }
+                x => lexer.error(format!("Cannot access field for datatype: {:?}", x))?,
+            };
+        }
+        Ok(operand)
+    }
+
+    fn parse_postfix(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
+        let result = Self::parse_literal(lexer, scope)?;
+        match lexer.peek() {
+            Token::LBRACE => Self::parse_indexing(result, lexer, scope),
+            Token::DOT => Self::parse_field_access(result, lexer, scope),
+            _ => Ok(result),
+        }
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
@@ -367,14 +454,8 @@ impl Expression {
             Token::SUB | Token::LOGNEG | Token::MUL | Token::REF | Token::COMPLEMENT => {
                 Self::parse_unary(lexer, scope)
             }
-            Token::LPAREN => {
-                lexer.expect(Token::LPAREN)?;
-                let result = Self::parse_expressions(lexer, scope);
-                lexer.expect(Token::RPAREN)?;
-                result
-            }
             // only literal left to parse
-            _ => Self::parse_post_fix(lexer, scope),
+            _ => Self::parse_postfix(lexer, scope),
         }
     }
 
@@ -536,6 +617,12 @@ impl Expression {
                 _ => panic!("cannot deref non pointer data-type expression!"),
             },
             Expression::Assignment(assignment) => assignment.data_type(),
+            Expression::TypeExpression(typeexpression) => typeexpression.data_type(),
+            Expression::FieldAccress {
+                offset: _,
+                data_type,
+                operand: _,
+            } => data_type.clone(),
         }
     }
 }

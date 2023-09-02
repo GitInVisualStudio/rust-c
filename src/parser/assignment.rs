@@ -6,8 +6,8 @@ use crate::{
 };
 
 use super::{
+    data_type::DataType,
     expression::{Expression, UnaryOps},
-    variable::DataType,
     ASTNode,
 };
 
@@ -25,6 +25,11 @@ pub enum Assignment {
         index: Rc<Expression>,
         value: Rc<Expression>,
         address: Rc<Expression>,
+    },
+    FieldAssignment {
+        offset: usize,
+        address: Rc<Expression>,
+        value: Rc<Expression>,
     },
 }
 
@@ -94,6 +99,23 @@ impl ASTNode for Assignment {
                 Reg::pop();
                 result
             }
+            Assignment::FieldAssignment {
+                offset,
+                address,
+                value,
+            } => {
+                address.generate(gen)?;
+                let address = Reg::push();
+                value.generate(gen)?;
+                let value = Reg::current();
+                Reg::set_size(8);
+                gen.add(Reg::IMMEDIATE(*offset as i64), address)?;
+                let address = format!("({})", address);
+                Reg::set_size(self.data_type().size());
+                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                Reg::pop();
+                result
+            }
         }
     }
 }
@@ -117,6 +139,11 @@ impl Assignment {
                 DataType::PTR(x) => x.as_ref().clone(),
                 x => x.clone(),
             },
+            Assignment::FieldAssignment {
+                offset: _,
+                address: _,
+                value,
+            } => value.data_type(),
         }
     }
 
@@ -177,6 +204,19 @@ impl Assignment {
                 _ => lexer
                     .error("can only assing expression to a variable or pointer!".to_string())?,
             },
+            Expression::FieldAccress {
+                offset,
+                data_type,
+                operand,
+            } => {
+                let expression = Expression::parse(lexer, scope)?;
+                Self::check_data_types(data_type, &expression.data_type(), lexer)?;
+                Self::FieldAssignment {
+                    offset: *offset,
+                    address: operand.clone(),
+                    value: expression,
+                }
+            }
             _ => lexer.error("Cannot assign expression to non variable!".to_string())?,
         }))
     }

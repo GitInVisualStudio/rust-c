@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::lexer::tokens::Token;
 
-use super::{scope::IScope, type_expression::TypeExpression, variable::DataType, ASTNode};
+use super::{scope::IScope, type_expression::TypeExpression, data_type::DataType, ASTNode};
 
 #[derive(Debug)]
 pub struct TypeDefinition {
@@ -22,7 +22,12 @@ impl ASTNode for TypeDefinition {
 
         let expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
-        
+
+        let contains: Option<&TypeDefinition> = scope.get(&name);
+        if contains.is_some() {
+            return lexer.error(format!("Type {} already defined!", name));
+        }
+
         let result = Rc::new(TypeDefinition {
             data_type: expression.data_type(),
             name,
@@ -32,7 +37,7 @@ impl ASTNode for TypeDefinition {
     }
 
     fn generate(&self, _: &mut super::generator::Generator) -> Result<usize, std::io::Error> {
-        todo!()
+        Ok(0)
     }
 }
 
