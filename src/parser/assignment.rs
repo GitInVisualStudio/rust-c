@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{io::Error, rc::Rc};
 
 use crate::{
     lexer::{tokens::Token, Lexer, LexerError},
@@ -8,6 +8,7 @@ use crate::{
 use super::{
     data_type::DataType,
     expression::{Expression, UnaryOps},
+    generator::Generator,
     ASTNode,
 };
 
@@ -49,16 +50,30 @@ impl ASTNode for Assignment {
             Assignment::VariableAssignment {
                 stack_offset,
                 expression,
-            } => {
-                Reg::set_size(self.data_type().size());
-                expression.generate(gen)?;
-                gen.mov(
-                    Reg::current(),
-                    Reg::STACK {
-                        offset: *stack_offset,
-                    },
-                )
-            }
+            } => match expression.data_type() {
+                DataType::STRUCT(x) => {
+                    let size = x.size();
+                    let mut bytes_to_copy = size;
+                    expression.generate(gen)?;
+                    let expression = Reg::push();
+                    while bytes_to_copy > 0 {
+                        bytes_to_copy =
+                            Self::mov(gen, expression, *stack_offset, bytes_to_copy, size)?;
+                    }
+                    Reg::pop();
+                    Ok(0)
+                }
+                _ => {
+                    Reg::set_size(self.data_type().size());
+                    expression.generate(gen)?;
+                    gen.mov(
+                        Reg::current(),
+                        Reg::STACK {
+                            offset: *stack_offset,
+                        },
+                    )
+                }
+            },
             Assignment::PtrAssignment { value, address } => {
                 Reg::set_size(self.data_type().size());
                 address.generate(gen)?;
@@ -144,6 +159,97 @@ impl Assignment {
                 address: _,
                 value,
             } => value.data_type(),
+        }
+    }
+
+    fn mov(
+        gen: &mut Generator,
+        from: Reg,
+        stack_offset: usize,
+        bytes_to_copy: usize,
+        total_size: usize,
+    ) -> Result<usize, Error> {
+        match bytes_to_copy {
+            1 => {
+                let bytes = 1;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovb\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            2..=3 => {
+                let bytes = 2;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovw\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            4..=8 => {
+                let bytes = 4;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovd\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            _ => {
+                let bytes = 8;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovq\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
         }
     }
 

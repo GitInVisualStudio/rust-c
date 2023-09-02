@@ -97,6 +97,11 @@ impl Function {
         // check if function already exists
         let contains: Option<&Function> = scope.get(&self.name);
         if let Some(x) = contains {
+            if x.return_type != self.return_type {
+                return lexer.error(format!(
+                    "Declaration is incompatible with other declaration!"
+                ));
+            }
             if x.statements.is_some() && self.statements.is_some() {
                 return lexer.error(format!("Function {} already exists!", &self.name));
             }

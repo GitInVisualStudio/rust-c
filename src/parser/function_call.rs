@@ -32,9 +32,6 @@ impl ASTNode for FunctionCall {
     fn generate(&self, gen: &mut super::generator::Generator) -> Result<usize, std::io::Error> {
         // store parameter in registers
         for (index, parameter) in self.parameter.iter().enumerate() {
-            // clear the registers
-            Reg::set_size(8);
-            gen.mov(Reg::IMMEDIATE(0), Reg::get_parameter_index(index))?;
             parameter.generate(gen)?;
             Reg::set_size(self.data_types[index].size());
             gen.mov(Reg::current(), Reg::get_parameter_index(index))?;

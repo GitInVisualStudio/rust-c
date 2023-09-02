@@ -33,7 +33,7 @@ impl DataType {
 
     pub fn can_convert(&self, to: DataType) -> bool {
         match (self, to) {
-            (DataType::STRUCT(x), DataType::STRUCT(y)) if *x == y => false,
+            (DataType::STRUCT(x), DataType::STRUCT(y)) if *x == y => true,
             (_, DataType::STRUCT(_)) => false,
             (DataType::STRUCT(_), _) => false,
             _ => true,

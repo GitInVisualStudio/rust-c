@@ -1,6 +1,7 @@
 use std::io::Error;
 use std::rc::Rc;
 
+use super::assignment::Assignment;
 use super::data_type::{DataType, Struct};
 use super::expression::Expression;
 use super::for_statement::ForStatement;
@@ -27,7 +28,7 @@ pub enum Statement {
     },
     VariableDeclaration {
         variable: Rc<Variable>,
-        expression: Option<Rc<Expression>>,
+        expression: Option<Assignment>,
     },
     StatementList(Rc<StatementList>),
     IfStatement(Rc<IfStatement>),
@@ -123,29 +124,16 @@ impl ASTNode for Statement {
                     expression.as_ref().unwrap().generate(gen)?;
                 }
                 gen.pop_stack()?;
-                let prev = Reg::get_size();
-                if prev < 8 {
-                    Reg::set_size(8);
-                    gen.mov(Reg::IMMEDIATE(0), Reg::RAX)?;
-                    Reg::set_size(prev);
-                }
                 gen.mov(Reg::current(), Reg::RAX)?;
                 gen.emit("\tret\n")?;
                 Ok(0)
             }
             Statement::VariableDeclaration {
-                variable,
+                variable: _,
                 expression,
             } => {
                 if expression.is_some() {
                     expression.as_ref().unwrap().generate(gen)?;
-                    Reg::set_size(variable.data_type().size());
-                    gen.mov(
-                        Reg::current(),
-                        Reg::STACK {
-                            offset: variable.offset(),
-                        },
-                    )?;
                 }
                 Ok(0)
             }
@@ -210,8 +198,11 @@ impl Statement {
                     ))?
                 }
                 Statement::VariableDeclaration {
+                    expression: Some(Assignment::VariableAssignment {
+                        stack_offset: var.offset(),
+                        expression: expression,
+                    }),
                     variable: var,
-                    expression: Some(expression),
                 }
             }
             _ => Statement::VariableDeclaration {
