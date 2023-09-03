@@ -11,6 +11,7 @@ use super::variable::Variable;
 use super::ASTNode;
 use crate::lexer::tokens::Token;
 use crate::lexer::{Lexer, LexerError};
+use crate::parser::data_type::Struct;
 
 #[derive(Debug)]
 pub struct Function {
@@ -78,16 +79,31 @@ impl ASTNode for Function {
 
         //push parameter onto the local stack
         for (index, parameter) in self.parameter.iter().enumerate() {
-            Reg::set_size(parameter.data_type().size());
-            gen.mov(
-                Reg::get_parameter_index(index),
-                Reg::STACK {
-                    offset: parameter.offset(),
-                },
-            )?;
+            match parameter.data_type() {
+                DataType::STRUCT(_) => Struct::mov(
+                    gen,
+                    Reg::get_parameter_index(index),
+                    parameter.offset(),
+                    parameter.data_type(),
+                ),
+                _ => {
+                    Reg::set_size(parameter.data_type().size());
+                    gen.mov(
+                        Reg::get_parameter_index(index),
+                        Reg::STACK {
+                            offset: parameter.offset(),
+                        },
+                    )
+                }
+            }?;
         }
 
         self.statements.as_ref().unwrap().generate(gen)?;
+
+        if self.return_type == DataType::VOID {
+            gen.pop_stack()?;
+            gen.emit("\tret\n")?;
+        }
         Ok(0)
     }
 }
@@ -114,6 +130,7 @@ impl Function {
                 }
             }
         }
+
         Ok(true)
     }
 

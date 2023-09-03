@@ -1,6 +1,9 @@
-use std::rc::Rc;
+use std::{io::Error, rc::Rc};
 
-use super::variable::Variable;
+use super::{
+    generator::{register::Reg, Generator},
+    variable::Variable,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
@@ -79,5 +82,110 @@ impl Struct {
 
     pub fn fields_equal(&self, other: &Vec<Variable>) -> bool {
         &self.fields == other
+    }
+
+    fn mov_bytes(
+        gen: &mut Generator,
+        from: Reg,
+        stack_offset: usize,
+        bytes_to_copy: usize,
+        total_size: usize,
+    ) -> Result<usize, Error> {
+        match bytes_to_copy {
+            1 => {
+                let bytes = 1;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovb\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            2..=3 => {
+                let bytes = 2;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovw\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            4..=8 => {
+                let bytes = 4;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmov \t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+            _ => {
+                let bytes = 8;
+                Reg::set_size(bytes);
+                let current = format!("{}", Reg::current());
+                Reg::set_size(8);
+                gen.emit(&format!(
+                    "\tmovq\t{}({}), {}\n",
+                    total_size - bytes_to_copy,
+                    from,
+                    current
+                ))?;
+                gen.emit(&format!(
+                    "\tmov \t{}, {}\n",
+                    current,
+                    Reg::STACK {
+                        offset: stack_offset - (total_size - bytes_to_copy)
+                    }
+                ))?;
+                Ok(bytes_to_copy - bytes)
+            }
+        }
+    }
+
+    pub fn mov(
+        gen: &mut Generator,
+        from: Reg,
+        to: usize,
+        data_type: DataType,
+    ) -> Result<usize, Error> {
+        let size = data_type.size();
+        let mut bytes_to_copy = size;
+        while bytes_to_copy > 0 {
+            bytes_to_copy = Self::mov_bytes(gen, from, to, bytes_to_copy, size)?;
+        }
+        Ok(0)
     }
 }

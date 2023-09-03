@@ -220,11 +220,11 @@ impl Statement {
 
     fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         lexer.expect(Token::RETURN)?;
-        // if lexer.peek() == Token::SEMIC {
-        //     return Ok(Rc::new(Statement::Return {
-        //         expression: None,
-        //     }))
-        // }
+        if lexer.peek() == Token::SEMIC {
+            return Ok(Rc::new(Statement::Return {
+                expression: None,
+            }))
+        }
         let expression = Expression::parse(lexer, scope)?;
         Ok(Rc::new(Statement::Return {
             expression: Some(expression),
