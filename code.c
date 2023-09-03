@@ -1,4 +1,13 @@
 void putchar(char c);
+void print_int(int value);
+void print_int(int value) {
+    if (value < 10) {
+        putchar(value + '0');
+        return;
+    }
+    print_int(value / 10);
+    putchar(value % 10 + '0');
+}
 
 typedef struct Node
 {
@@ -15,7 +24,7 @@ typedef struct LinkedList
 Node *malloc(int size);
 void free(Node *ptr);
 
-int push(LinkedList *list, int value)
+void push(LinkedList *list, int value)
 {
     Node *node = malloc(sizeof(Node));
     node->value = value;
@@ -24,11 +33,10 @@ int push(LinkedList *list, int value)
     {
         list->first = node;
         list->last = node;
-        return 0;
+        return;
     }
     list->last->next = node;
     list->last = node;
-    return 0;
 }
 
 void test() {
@@ -36,13 +44,13 @@ void test() {
     list.first = 0;
     list.last = 0;
 
-    for (int i = 0; i < 10; i = i + 1) {
+    for (int i = 90; i < 100; i = i + 1) {
         push(&list, i);
     }
 
     Node* current = list.first;
     while (current) {
-        putchar(current->value+ '0');
+        print_int(current->value);
         putchar(10);
         Node* next = current->next;
         free(current);
@@ -50,8 +58,7 @@ void test() {
     }
 }
 
-int main()
+void main()
 {
     test();
-    return 0;
 }
