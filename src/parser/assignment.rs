@@ -1,4 +1,4 @@
-use std::{io::Error, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     lexer::{tokens::Token, Lexer, LexerError},
@@ -8,7 +8,6 @@ use crate::{
 use super::{
     data_type::{DataType, Struct},
     expression::{Expression, UnaryOps},
-    generator::Generator,
     ASTNode,
 };
 

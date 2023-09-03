@@ -3,11 +3,12 @@ use std::rc::Rc;
 
 use super::array_expression::ArrayExpression;
 use super::assignment::Assignment;
-use super::data_type::DataType;
+use super::data_type::{DataType, Struct};
 use super::function_call::FunctionCall;
 use super::generator::Generator;
 use super::scope::{IScope, Scope};
 use super::struct_expression::SturctExpression;
+use super::type_definition::TypeDefinition;
 use super::type_expression::TypeExpression;
 use super::variable::Variable;
 use super::ASTNode;
@@ -347,23 +348,39 @@ impl Expression {
                 Ok(Rc::new(Self::CharLiteral(value)))
             }
             Token::IDENT => {
-                let name = lexer.expect(Token::IDENT)?.trim_start().to_string();
+                lexer.next();
+                let contains: Option<Rc<Struct>> = scope.get(lexer.last_string());
+                lexer.set_back(lexer.last_string().len());
+                if let Some(_) = contains {
+                    Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
+                        lexer, scope,
+                    )?)))
+                } else {
+                    let contains: Option<Rc<TypeDefinition>> = scope.get(lexer.last_string());
+                    if let Some(_) = contains {
+                        Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
+                            lexer, scope,
+                        )?)))
+                    } else {
+                        let name = lexer.expect(Token::IDENT)?.to_string();
 
-                match lexer.peek() {
-                    Token::LPAREN => Ok(Rc::new(Self::FunctionCall(FunctionCall::parse_name(
-                        name, lexer, scope,
-                    )?))),
-                    _ => {
-                        let contains: Option<Rc<Variable>> = scope.get(&name);
-                        if let None = contains {
-                            return lexer.error(format!("Variable {} not found!", name));
+                        match lexer.peek() {
+                            Token::LPAREN => Ok(Rc::new(Self::FunctionCall(
+                                FunctionCall::parse_name(name, lexer, scope)?,
+                            ))),
+                            _ => {
+                                let contains: Option<Rc<Variable>> = scope.get(&name);
+                                if let None = contains {
+                                    return lexer.error(format!("Variable {} not found!", name));
+                                }
+                                let var = contains.unwrap();
+                                let offset = var.offset();
+                                Ok(Rc::new(Self::NamedVariable {
+                                    stack_offset: offset,
+                                    data_type: var.data_type(),
+                                }))
+                            }
                         }
-                        let var = contains.unwrap();
-                        let offset = var.offset();
-                        Ok(Rc::new(Self::NamedVariable {
-                            stack_offset: offset,
-                            data_type: var.data_type(),
-                        }))
                     }
                 }
             }
@@ -372,6 +389,15 @@ impl Expression {
                 let result = Self::parse_expressions(lexer, scope);
                 lexer.expect(Token::RPAREN)?;
                 result
+            }
+            Token::SIZEOF => {
+                lexer.next();
+                lexer.expect(Token::LPAREN)?;
+                let expression = Self::parse_expressions(lexer, scope)?;
+                lexer.expect(Token::RPAREN)?;
+                Ok(Rc::new(Self::IntLiteral(
+                    expression.data_type().size() as i32
+                )))
             }
             _ => Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
                 lexer, scope,

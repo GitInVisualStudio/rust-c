@@ -43,6 +43,7 @@ pub enum Token {
     TYPEDEF,
     STRUCT,
     DOT,
+    SIZEOF,
     IDENT,
     EOF,
     ERR,
@@ -94,8 +95,9 @@ impl Token {
             40 => Token::TYPEDEF,
             41 => Token::STRUCT,
             42 => Token::DOT,
-            43 => Token::IDENT,
-            44 => Token::EOF,
+            43 => Token::SIZEOF,
+            44 => Token::IDENT,
+            45 => Token::EOF,
             _ => Token::ERR,
         }
     }
@@ -145,5 +147,6 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "typedef",
     "struct",
     "\\.",
+    "sizeof",
     "\\w+",
 ];

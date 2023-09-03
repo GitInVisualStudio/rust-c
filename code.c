@@ -1,16 +1,57 @@
-typedef struct Point
-{
-    int x;
-    int y;
-} Point;
+void putchar(char c);
 
-Point create()
+typedef struct Node
 {
-    Point p = {.x = 5, .y = 3};
-    return p;
+    int value;
+    void *next;
+} Node;
+
+typedef struct LinkedList
+{
+    Node *first;
+    Node *last;
+} LinkedList;
+
+Node *malloc(int size);
+void free(Node *ptr);
+
+int push(LinkedList *list, int value)
+{
+    Node *node = malloc(sizeof(Node));
+    node->value = value;
+
+    if (list->first == 0)
+    {
+        list->first = node;
+        list->last = node;
+        return 0;
+    }
+    list->last->next = node;
+    list->last = node;
+    return 0;
+}
+
+void test() {
+    LinkedList list;
+    list.first = 0;
+    list.last = 0;
+
+    for (int i = 0; i < 10; i = i + 1) {
+        push(&list, i);
+    }
+
+    Node* current = list.first;
+    while (current) {
+        putchar(current->value+ '0');
+        putchar(10);
+        Node* next = current->next;
+        free(current);
+        current = next;
+    }
 }
 
 int main()
 {
-    return create().x + create().y;
+    test();
+    return 0;
 }
