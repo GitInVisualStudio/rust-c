@@ -1,64 +1,62 @@
 void putchar(char c);
-void print_int(int value);
-void print_int(int value) {
-    if (value < 10) {
-        putchar(value + '0');
-        return;
+
+int print_string(char* string) {
+    while (*string) {
+        putchar(*string);
+        string = string + 1;
     }
-    print_int(value / 10);
-    putchar(value % 10 + '0');
+    return 0;
 }
 
-typedef struct Node
+typedef struct Inner {
+    char a;
+    long b;
+} Inner;
+
+
+typedef struct Point
 {
-    int value;
-    void *next;
-} Node;
+    int x;
+    int y;
+    Inner i;
+} Point;
 
-typedef struct LinkedList
+int change(Point *p)
 {
-    Node *first;
-    Node *last;
-} LinkedList;
-
-Node *malloc(int size);
-void free(Node *ptr);
-
-void push(LinkedList *list, int value)
-{
-    Node *node = malloc(sizeof(Node));
-    node->value = value;
-
-    if (list->first == 0)
-    {
-        list->first = node;
-        list->last = node;
-        return;
-    }
-    list->last->next = node;
-    list->last = node;
+    p->x = 5;
+    p->y = 3;
+    p->i.a = 'H';
+    p->i.b = 49;
+    return 0;
 }
 
-void test() {
-    LinkedList list;
-    list.first = 0;
-    list.last = 0;
-
-    for (int i = 90; i < 100; i = i + 1) {
-        push(&list, i);
-    }
-
-    Node* current = list.first;
-    while (current) {
-        print_int(current->value);
-        putchar(10);
-        Node* next = current->next;
-        free(current);
-        current = next;
-    }
+int print_point(Point* p) {
+    print_string("X: ");
+    putchar(p->x + '0');
+    print_string(" Y: ");
+    putchar(p->y + '0');
+    putchar(10);
+    print_string("Inner: ");
+    putchar(p->i.a);
+    putchar(p->i.b);
+    putchar(10);
+    return 0;
 }
 
-void main()
+int test() {
+    Point p;
+    change(&p);
+    print_point(&p);
+
+
+    Point* c = &p;
+    c[0] = p;
+    print_point(c);
+
+    return c->x + c->y;
+}
+
+int main()
 {
-    test();
+    return test();
 }

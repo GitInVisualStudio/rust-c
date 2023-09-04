@@ -1,6 +1,6 @@
 use super::data_type::DataType;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
     name: String,
     data_type: DataType,
@@ -26,5 +26,9 @@ impl Variable {
 
     pub fn data_type(&self) -> DataType {
         self.data_type.clone()
+    }
+
+    pub fn set_offset(&mut self, offset: usize) {
+        self.offset = offset
     }
 }

@@ -80,12 +80,23 @@ impl ASTNode for Function {
         //push parameter onto the local stack
         for (index, parameter) in self.parameter.iter().enumerate() {
             match parameter.data_type() {
-                DataType::STRUCT(_) => Struct::mov(
-                    gen,
-                    Reg::get_parameter_index(index),
-                    parameter.offset(),
-                    parameter.data_type(),
-                ),
+                DataType::STRUCT(_) => {
+                    let to = Reg::push();
+                    gen.lea(
+                        Reg::STACK {
+                            offset: parameter.offset(),
+                        },
+                        to,
+                    )?;
+                    let result = Struct::mov(
+                        gen,
+                        Reg::get_parameter_index(index),
+                        to,
+                        parameter.data_type(),
+                    );
+                    Reg::pop();
+                    result
+                }
                 _ => {
                     Reg::set_size(parameter.data_type().size());
                     gen.mov(

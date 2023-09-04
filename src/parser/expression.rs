@@ -53,7 +53,7 @@ pub enum Expression {
     StructExpresion(Rc<SturctExpression>),
     Assignment(Rc<Assignment>),
     TypeExpression(Rc<TypeExpression>),
-    FieldAccress {
+    FieldAccess {
         offset: usize,
         data_type: DataType,
         operand: Rc<Expression>,
@@ -243,23 +243,27 @@ impl ASTNode for Expression {
             }
             Expression::Assignment(assignment) => assignment.generate(gen),
             Expression::TypeExpression(expression) => expression.generate(gen),
-            Expression::FieldAccress {
+            Expression::FieldAccess {
                 offset,
                 data_type,
                 operand,
-            } => match data_type {
-                DataType::STRUCT(_) => {
-                    operand.generate(gen)?;
-                    gen.add(Reg::IMMEDIATE(*offset as i64), Reg::current())
+            } => {
+                // let offset = data_type.size() - *offset;
+                let offset = *offset;
+                match data_type {
+                    DataType::STRUCT(_) => {
+                        operand.generate(gen)?;
+                        gen.add(Reg::IMMEDIATE(offset as i64), Reg::current())
+                    }
+                    data_type => {
+                        operand.generate(gen)?;
+                        gen.add(Reg::IMMEDIATE(offset as i64), Reg::current())?;
+                        let address = format!("{}", Reg::current());
+                        Reg::set_size(data_type.size());
+                        gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                    }
                 }
-                data_type => {
-                    operand.generate(gen)?;
-                    gen.add(Reg::IMMEDIATE(*offset as i64), Reg::current())?;
-                    let address = format!("{}", Reg::current());
-                    Reg::set_size(data_type.size());
-                    gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
-                }
-            },
+            }
             Expression::StructExpresion(expr) => expr.generate(gen),
         }
     }
@@ -435,7 +439,7 @@ impl Expression {
                     let name = lexer.expect(Token::IDENT)?.to_string();
                     match data_type.get(&name) {
                         Some(var) => {
-                            operand = Rc::new(Self::FieldAccress {
+                            operand = Rc::new(Self::FieldAccess {
                                 offset: var.offset() - var.data_type().size(),
                                 data_type: var.data_type(),
                                 operand: operand,
@@ -469,7 +473,7 @@ impl Expression {
                             let name = lexer.expect(Token::IDENT)?.to_string();
                             match data_type.get(&name) {
                                 Some(var) => {
-                                    operand = Rc::new(Self::FieldAccress {
+                                    operand = Rc::new(Self::FieldAccess {
                                         offset: var.offset() - var.data_type().size(),
                                         data_type: var.data_type(),
                                         operand: operand,
@@ -490,13 +494,19 @@ impl Expression {
     }
 
     fn parse_postfix(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        let result = Self::parse_literal(lexer, scope)?;
-        match lexer.peek() {
-            Token::LBRACE => Self::parse_indexing(result, lexer, scope),
-            Token::DOT => Self::parse_field_access(result, lexer, scope),
-            Token::ARROW => Self::parse_arrow_access(result, lexer, scope),
-            _ => Ok(result),
+        let mut result = Self::parse_literal(lexer, scope)?;
+        while lexer.peek() == Token::LBRACE
+            || lexer.peek() == Token::DOT
+            || lexer.peek() == Token::ARROW
+        {
+            result = match lexer.peek() {
+                Token::LBRACE => Self::parse_indexing(result, lexer, scope),
+                Token::DOT => Self::parse_field_access(result, lexer, scope),
+                Token::ARROW => Self::parse_arrow_access(result, lexer, scope),
+                _ => Ok(result),
+            }?;
         }
+        Ok(result)
     }
 
     fn parse_unary(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
@@ -701,7 +711,7 @@ impl Expression {
             },
             Expression::Assignment(assignment) => assignment.data_type(),
             Expression::TypeExpression(typeexpression) => typeexpression.data_type(),
-            Expression::FieldAccress {
+            Expression::FieldAccess {
                 offset: _,
                 data_type,
                 operand: _,

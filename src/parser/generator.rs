@@ -64,6 +64,7 @@ impl Generator {
     }
 
     pub fn lea(&mut self, from: Reg, to: Reg) -> Result<usize, Error> {
+        Reg::set_size(8);
         self.emit_ins("lea ", from, to)
     }
 

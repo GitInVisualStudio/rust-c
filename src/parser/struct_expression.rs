@@ -23,7 +23,7 @@ impl ASTNode for SturctExpression {
         Self: Sized,
     {
         let mut fields: Vec<Variable> = Vec::new();
-        let mut assignments: Vec<Assignment> = Vec::new();
+        let mut expressions: Vec<Rc<Expression>> = Vec::new();
         let mut offset = 0;
         while lexer.peek() != Token::RCURL {
             lexer.expect(Token::DOT)?;
@@ -34,17 +34,25 @@ impl ASTNode for SturctExpression {
 
             offset += expression.data_type().size();
             fields.push(var);
-            assignments.push(Assignment::VariableAssignment {
-                stack_offset: scope.stack_size() + offset,
-                expression: expression,
-            });
+            expressions.push(expression);
 
             if lexer.peek() != Token::RCURL {
                 lexer.expect(Token::COMMA)?;
             }
         }
-        lexer.expect(Token::RCURL)?;
         scope.add_stack(offset);
+
+        let mut assignments: Vec<_> = Vec::new();
+        let mut offset = scope.stack_size();
+        for expression in expressions {
+            assignments.push(Assignment::VariableAssignment {
+                stack_offset: offset,
+                expression: expression.clone(),
+            });
+            offset -= expression.data_type().size();
+        }
+
+        lexer.expect(Token::RCURL)?;
         for struct_ in scope.get_structs() {
             if struct_.fields_equal(&fields) {
                 return Ok(Rc::new(SturctExpression {

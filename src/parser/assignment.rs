@@ -53,9 +53,18 @@ impl ASTNode for Assignment {
                 DataType::STRUCT(_) => {
                     expression.generate(gen)?;
                     let from = Reg::push();
-                    Struct::mov(gen, from, *stack_offset, expression.data_type())?;
+                    let to = Reg::push();
+                    gen.lea(
+                        Reg::STACK {
+                            offset: *stack_offset,
+                        },
+                        to,
+                    )?;
+                    let result = Struct::mov(gen, from, to, expression.data_type());
                     Reg::pop();
-                    Ok(0)
+                    Reg::pop();
+
+                    result
                 }
                 _ => {
                     Reg::set_size(self.data_type().size());
@@ -68,46 +77,86 @@ impl ASTNode for Assignment {
                     )
                 }
             },
-            Assignment::PtrAssignment { value, address } => {
-                Reg::set_size(self.data_type().size());
-                address.generate(gen)?;
-                let address = Reg::push();
-                value.generate(gen)?;
-                let value = Reg::current();
+            Assignment::PtrAssignment { value, address } => match value.data_type() {
+                DataType::STRUCT(_) => {
+                    Reg::set_size(self.data_type().size());
+                    let data_type = value.data_type();
+                    address.generate(gen)?;
+                    let address = Reg::push();
+                    value.generate(gen)?;
+                    let value = Reg::push();
 
-                Reg::set_size(8);
-                let address = format!("({})", address);
+                    let result = Struct::mov(gen, value, address, data_type);
 
-                Reg::set_size(self.data_type().size());
-                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
-                Reg::pop();
-                result
-            }
+                    Reg::pop();
+                    Reg::pop();
+                    result
+                }
+                _ => {
+                    Reg::set_size(self.data_type().size());
+                    address.generate(gen)?;
+                    let address = Reg::push();
+                    value.generate(gen)?;
+                    let value = Reg::current();
+
+                    Reg::set_size(8);
+                    let address = format!("({})", address);
+
+                    Reg::set_size(self.data_type().size());
+                    let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                    Reg::pop();
+                    result
+                }
+            },
             Assignment::ArrayAssignment {
                 index,
                 value,
                 address,
-            } => {
-                value.generate(gen)?;
-                let value = Reg::push();
+            } => match value.data_type() {
+                DataType::STRUCT(_) => {
+                    let data_type = value.data_type();
+                    value.generate(gen)?;
+                    let value = Reg::push();
 
-                address.generate(gen)?;
-                let address = Reg::push();
+                    address.generate(gen)?;
+                    let address = Reg::push();
 
-                index.generate(gen)?;
-                let index = Reg::current();
+                    index.generate(gen)?;
+                    let index = Reg::current();
 
-                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
-                Reg::set_size(8);
-                gen.add(index, address)?;
-                let address = format!("({})", address);
-                Reg::set_size(self.data_type().size());
-                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                    Reg::set_size(8);
+                    gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
+                    gen.add(index, address)?;
 
-                Reg::pop();
-                Reg::pop();
-                result
-            }
+                    let result = Struct::mov(gen, value, address, data_type);
+
+                    Reg::pop();
+                    Reg::pop();
+
+                    result
+                }
+                _ => {
+                    value.generate(gen)?;
+                    let value = Reg::push();
+
+                    address.generate(gen)?;
+                    let address = Reg::push();
+
+                    index.generate(gen)?;
+                    let index = Reg::current();
+
+                    gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
+                    Reg::set_size(8);
+                    gen.add(index, address)?;
+                    let address = format!("({})", address);
+                    Reg::set_size(self.data_type().size());
+                    let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+
+                    Reg::pop();
+                    Reg::pop();
+                    result
+                }
+            },
             Assignment::FieldAssignment {
                 offset,
                 address,
@@ -213,7 +262,7 @@ impl Assignment {
                 _ => lexer
                     .error("can only assing expression to a variable or pointer!".to_string())?,
             },
-            Expression::FieldAccress {
+            Expression::FieldAccess {
                 offset,
                 data_type,
                 operand,

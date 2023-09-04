@@ -87,7 +87,7 @@ impl Struct {
     fn mov_bytes(
         gen: &mut Generator,
         from: Reg,
-        stack_offset: usize,
+        to: Reg,
         bytes_to_copy: usize,
         total_size: usize,
     ) -> Result<usize, Error> {
@@ -103,13 +103,8 @@ impl Struct {
                     from,
                     current
                 ))?;
-                gen.emit(&format!(
-                    "\tmov \t{}, {}\n",
-                    current,
-                    Reg::STACK {
-                        offset: stack_offset - (total_size - bytes_to_copy)
-                    }
-                ))?;
+                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
             2..=3 => {
@@ -123,16 +118,11 @@ impl Struct {
                     from,
                     current
                 ))?;
-                gen.emit(&format!(
-                    "\tmov \t{}, {}\n",
-                    current,
-                    Reg::STACK {
-                        offset: stack_offset - (total_size - bytes_to_copy)
-                    }
-                ))?;
+                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
-            4..=8 => {
+            4..=7 => {
                 let bytes = 4;
                 Reg::set_size(bytes);
                 let current = format!("{}", Reg::current());
@@ -143,13 +133,8 @@ impl Struct {
                     from,
                     current
                 ))?;
-                gen.emit(&format!(
-                    "\tmov \t{}, {}\n",
-                    current,
-                    Reg::STACK {
-                        offset: stack_offset - (total_size - bytes_to_copy)
-                    }
-                ))?;
+                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
             _ => {
@@ -163,13 +148,8 @@ impl Struct {
                     from,
                     current
                 ))?;
-                gen.emit(&format!(
-                    "\tmov \t{}, {}\n",
-                    current,
-                    Reg::STACK {
-                        offset: stack_offset - (total_size - bytes_to_copy)
-                    }
-                ))?;
+                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
         }
@@ -178,7 +158,7 @@ impl Struct {
     pub fn mov(
         gen: &mut Generator,
         from: Reg,
-        to: usize,
+        to: Reg,
         data_type: DataType,
     ) -> Result<usize, Error> {
         let size = data_type.size();
