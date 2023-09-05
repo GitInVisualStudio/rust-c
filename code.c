@@ -1,57 +1,27 @@
+void* malloc(long size);
+void free(void* ptr);
 void putchar(char c);
 
-int print_string(char* string) {
-    while (*string) {
-        putchar(*string);
-        string = string + 1;
+int print_string(char* s) {
+    while (*s) {
+        putchar(*s);
+        s = s + 1;
     }
     return 0;
 }
 
-typedef struct Inner {
-    char a;
-    long b;
-} Inner;
-
-
-typedef struct Point
-{
-    int x;
-    int y;
-    Inner i;
-} Point;
-
-int change(Point *p)
-{
-    (*p).x = 5;
-    (*p).y = 3;
-    (*p).i.a = 'H';
-    (*p).i.b = 49;
-    return 0;
-}
-
-int print_point(Point* p) {
-    print_string("X: ");
-    putchar((*p).x + '0');
-    print_string(" Y: ");
-    putchar((*p).y + '0');
-    putchar(10);
-    print_string("Inner: ");
-    putchar((*p).i.a);
-    putchar((*p).i.b);
-    putchar(10);
-    return 0;
-}
-
-int test() {
-    Point p;
-    change(&p);
-    Point c = p;
-    print_point(&c);
-    return c.x + c.y;
-}
-
 int main()
 {
-    return test();
+    int* nums = malloc(4 * 10);
+    for (int i = 0; i < 10; i = i+1) {
+        nums[i] = i;
+    }
+    for (int i = 0; i < 10; i = i+1) {
+        char* string = "Number: ";
+        print_string(string);
+        putchar(nums[i] + '0');
+        putchar(10);
+    }
+    free(nums);
+    return 0;
 }

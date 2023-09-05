@@ -137,7 +137,7 @@ impl ASTNode for Assignment {
                     let value = Reg::push();
 
                     address.generate(gen)?;
-                    let address = Reg::push().as_address();
+                    let address = Reg::push();
 
                     index.generate(gen)?;
                     let index = Reg::current();
@@ -146,7 +146,7 @@ impl ASTNode for Assignment {
                     Reg::set_size(8);
                     gen.add(index, address)?;
                     Reg::set_size(self.data_type().size());
-                    let result = gen.mov(value, address);
+                    let result = gen.mov(value, address.as_address());
 
                     Reg::pop();
                     Reg::pop();

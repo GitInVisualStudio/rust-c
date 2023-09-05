@@ -104,7 +104,6 @@ impl ASTNode for Expression {
                 data_type,
             } => match data_type {
                 DataType::STRUCT(_) => {
-                    Reg::set_size(8);
                     gen.lea(
                         Reg::STACK {
                             offset: *stack_offset,
@@ -151,7 +150,6 @@ impl ASTNode for Expression {
                         stack_offset,
                         data_type: _,
                     } => {
-                        Reg::set_size(8);
                         gen.lea(
                             Reg::STACK {
                                 offset: *stack_offset,
@@ -170,7 +168,6 @@ impl ASTNode for Expression {
                         DataType::STRUCT(_) => expression.generate(gen),
                         _ => {
                             expression.generate(gen)?;
-                            Reg::set_size(8);
                             let address = Reg::current().as_address();
                             Reg::set_size(base_data_type.size());
                             gen.mov(address, Reg::current())
@@ -250,7 +247,6 @@ impl ASTNode for Expression {
                 data_type,
                 operand,
             } => {
-                // let offset = data_type.size() - *offset;
                 let offset = *offset;
                 match data_type {
                     DataType::STRUCT(_) => {
@@ -259,12 +255,8 @@ impl ASTNode for Expression {
                     }
                     data_type => {
                         operand.generate(gen)?;
-
-                        Reg::set_size(8);
-                        gen.add(Reg::IMMEDIATE(offset as i64), Reg::current())?;
-                        let address = Reg::current().as_address();
                         Reg::set_size(data_type.size());
-                        gen.mov(address, Reg::current())
+                        gen.mov(Reg::current().as_address().offset(offset), Reg::current())
                     }
                 }
             }
