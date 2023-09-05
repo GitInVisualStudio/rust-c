@@ -235,10 +235,18 @@ impl ASTNode for Expression {
                 Reg::set_size(8);
                 gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                 gen.add(index, address)?;
-
-                let address = address.as_address();
-                Reg::set_size(base_data_type.size());
-                gen.mov(address, Reg::current())
+                
+                match base_data_type.as_ref() {
+                    DataType::STRUCT(_) => {
+                        Reg::set_size(base_data_type.size());
+                        gen.mov(address, Reg::current())
+                    },
+                    _ => {
+                        let address = address.as_address();
+                        Reg::set_size(base_data_type.size());
+                        gen.mov(address, Reg::current())
+                    }
+                }
             }
             Expression::Assignment(assignment) => assignment.generate(gen),
             Expression::TypeExpression(expression) => expression.generate(gen),

@@ -102,7 +102,13 @@ impl TypeExpression {
                 }
                 lexer.error(format!("No struct wit name '{}' found!", name))
             }
-            _ => lexer.error("cannot pares struct!".to_string()),
+            _ => {
+                let contains: Option<Rc<Struct>> = scope.get(&name);
+                if let Some(x) = contains {
+                    return Ok(DataType::STRUCT(x))
+                }
+                lexer.error(format!("Cannot find struct with name: '{}'", name))
+            },
         }
     }
 }

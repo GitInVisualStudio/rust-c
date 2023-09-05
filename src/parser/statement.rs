@@ -167,6 +167,13 @@ impl Statement {
         scope: &mut Scope,
     ) -> Result<Rc<Self>, LexerError> {
         let expression = TypeExpression::parse(lexer, scope)?;
+
+        if lexer.peek() == Token::SEMIC {
+            return Ok(Rc::new(Self::SingleExpression {
+                expression: Rc::new(Expression::TypeExpression(expression)),
+            }));
+        }
+
         let name = lexer.expect(Token::IDENT)?.to_string();
         let var = Variable::new(&name, expression.data_type(), scope.stack_size());
         let mut var = Rc::new(var);
@@ -218,9 +225,7 @@ impl Statement {
     fn parse_return(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
         lexer.expect(Token::RETURN)?;
         if lexer.peek() == Token::SEMIC {
-            return Ok(Rc::new(Statement::Return {
-                expression: None,
-            }))
+            return Ok(Rc::new(Statement::Return { expression: None }));
         }
         let expression = Expression::parse(lexer, scope)?;
         Ok(Rc::new(Statement::Return {

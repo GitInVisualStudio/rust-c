@@ -22,7 +22,7 @@ impl ASTNode for Program {
         let mut funcs: Vec<Rc<dyn ASTNode>> = Vec::new();
         while lexer.peek() != Token::EOF {
             let child: Rc<dyn ASTNode> = match lexer.peek() {
-                Token::TYPEDEF => Statement::parse(lexer, scope)?,
+                Token::TYPEDEF | Token::STRUCT => Statement::parse(lexer, scope)?,
                 _ => Function::parse(lexer, scope)?,
             };
             funcs.push(child)
