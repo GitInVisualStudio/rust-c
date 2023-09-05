@@ -95,60 +95,32 @@ impl Struct {
             1 => {
                 let bytes = 1;
                 Reg::set_size(bytes);
-                let current = format!("{}", Reg::current());
-                Reg::set_size(8);
-                gen.emit(&format!(
-                    "\tmovb\t{}({}), {}\n",
-                    total_size - bytes_to_copy,
-                    from,
-                    current
-                ))?;
-                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
+                gen.mov(Reg::current(), to.as_address())?;
                 gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
             2..=3 => {
                 let bytes = 2;
                 Reg::set_size(bytes);
-                let current = format!("{}", Reg::current());
-                Reg::set_size(8);
-                gen.emit(&format!(
-                    "\tmovw\t{}({}), {}\n",
-                    total_size - bytes_to_copy,
-                    from,
-                    current
-                ))?;
-                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
+                gen.mov(Reg::current(), to.as_address())?;
                 gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
             4..=7 => {
                 let bytes = 4;
                 Reg::set_size(bytes);
-                let current = format!("{}", Reg::current());
-                Reg::set_size(8);
-                gen.emit(&format!(
-                    "\tmov \t{}({}), {}\n",
-                    total_size - bytes_to_copy,
-                    from,
-                    current
-                ))?;
-                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
+                gen.mov(Reg::current(), to.as_address())?;
                 gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
             _ => {
                 let bytes = 8;
                 Reg::set_size(bytes);
-                let current = format!("{}", Reg::current());
-                Reg::set_size(8);
-                gen.emit(&format!(
-                    "\tmovq\t{}({}), {}\n",
-                    total_size - bytes_to_copy,
-                    from,
-                    current
-                ))?;
-                gen.emit(&format!("\tmov \t{}, ({})\n", current, to,))?;
+                gen.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
+                gen.mov(Reg::current(), to.as_address())?;
                 gen.add(Reg::IMMEDIATE(bytes as i64), to)?;
                 Ok(bytes_to_copy - bytes)
             }
@@ -163,6 +135,7 @@ impl Struct {
     ) -> Result<usize, Error> {
         let size = data_type.size();
         let mut bytes_to_copy = size;
+        let from = from.as_address();
         while bytes_to_copy > 0 {
             bytes_to_copy = Self::mov_bytes(gen, from, to, bytes_to_copy, size)?;
         }

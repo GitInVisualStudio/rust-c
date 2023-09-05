@@ -95,15 +95,12 @@ impl ASTNode for Assignment {
                 _ => {
                     Reg::set_size(self.data_type().size());
                     address.generate(gen)?;
-                    let address = Reg::push();
+                    let address = Reg::push().as_address();
                     value.generate(gen)?;
                     let value = Reg::current();
 
-                    Reg::set_size(8);
-                    let address = format!("({})", address);
-
                     Reg::set_size(self.data_type().size());
-                    let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                    let result = gen.mov(value, address);
                     Reg::pop();
                     result
                 }
@@ -140,7 +137,7 @@ impl ASTNode for Assignment {
                     let value = Reg::push();
 
                     address.generate(gen)?;
-                    let address = Reg::push();
+                    let address = Reg::push().as_address();
 
                     index.generate(gen)?;
                     let index = Reg::current();
@@ -148,9 +145,8 @@ impl ASTNode for Assignment {
                     gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                     Reg::set_size(8);
                     gen.add(index, address)?;
-                    let address = format!("({})", address);
                     Reg::set_size(self.data_type().size());
-                    let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                    let result = gen.mov(value, address);
 
                     Reg::pop();
                     Reg::pop();
@@ -166,11 +162,14 @@ impl ASTNode for Assignment {
                 let address = Reg::push();
                 value.generate(gen)?;
                 let value = Reg::current();
+
+                // add the offset
                 Reg::set_size(8);
                 gen.add(Reg::IMMEDIATE(*offset as i64), address)?;
-                let address = format!("({})", address);
+
+                let address = address.as_address();
                 Reg::set_size(self.data_type().size());
-                let result = gen.emit(&format!("\tmov \t{}, {}\n", value, address));
+                let result = gen.mov(value, address);
                 Reg::pop();
                 result
             }

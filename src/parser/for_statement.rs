@@ -67,7 +67,7 @@ impl ASTNode for ForStatement {
         self.condition.generate(gen)?;
         gen.cmp(Reg::IMMEDIATE(0), Reg::current())?;
         // jump to end of for if the condition is not met anymore
-        gen.emit(&format!("\tje\t\t{}\n", end))?;
+        gen.je(&end)?;
 
         self.body.generate(gen)?;
 
@@ -76,8 +76,7 @@ impl ASTNode for ForStatement {
             post.generate(gen)?;
         }
 
-        gen.emit(&format!("\tjmp\t\t{}\n", body))?;
-        gen.emit_label(&end)?;
-        Ok(0)
+        gen.jmp(&body)?;
+        gen.emit_label(&end)
     }
 }

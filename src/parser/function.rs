@@ -74,7 +74,7 @@ impl ASTNode for Function {
         if self.statements.is_none() {
             return Ok(0);
         }
-        gen.emit(&format!("{}:\n", self.name))?;
+        gen.emit_label(&self.name)?;
         gen.push_stack(self.stack_size)?;
 
         //push parameter onto the local stack
@@ -113,7 +113,7 @@ impl ASTNode for Function {
 
         if self.return_type == DataType::VOID {
             gen.pop_stack()?;
-            gen.emit("\tret\n")?;
+            gen.ret()?;
         }
         Ok(0)
     }

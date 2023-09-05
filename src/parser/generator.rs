@@ -54,6 +54,22 @@ impl Generator {
         self.emit_ins("cmp ", from, to)
     }
 
+    pub fn cdq(&mut self) -> Result<usize, Error> {
+        self.emit("\tcdq\n")
+    }
+
+    pub fn jmp(&mut self, label: &str) -> Result<usize, Error> {
+        self.emit(&format!("\tjmp\t\t{}\n", label))
+    }
+
+    pub fn jne(&mut self, label: &str) -> Result<usize, Error> {
+        self.emit(&format!("\tjne\t\t{}\n", label))
+    }
+
+    pub fn je(&mut self, label: &str) -> Result<usize, Error> {
+        self.emit(&format!("\tje\t\t{}\n", label))
+    }
+
     pub fn gen_cmp(&mut self, ins: &str, from: Reg, to: Reg) -> Result<usize, Error> {
         self.cmp(from, to)?;
         self.mov(Reg::IMMEDIATE(0), to)?;
@@ -85,6 +101,10 @@ impl Generator {
 
     pub fn call(&mut self, label: &str) -> Result<usize, Error> {
         self.emit(&format!("\tcall \t{}\n", label))
+    }
+
+    pub fn ret(&mut self) -> Result<usize, Error> {
+        self.emit("\tret\n")
     }
 
     pub fn emit_string(&mut self, label: usize, string: &str) -> Result<usize, Error> {

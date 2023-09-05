@@ -44,17 +44,16 @@ impl ASTNode for IfStatement {
         let (else_part, end) = Generator::generate_clause_names();
         gen.cmp(Reg::IMMEDIATE(0), Reg::current())?;
 
-        gen.emit(&format!("\tje\t\t{}\n", else_part))?;
+        gen.je(&else_part)?;
 
         self.statements.generate(gen)?;
 
-        gen.emit(&format!("\tjmp \t{}\n", end))?;
+        gen.jmp(&end)?;
         gen.emit_label(&else_part)?;
 
         if let Some(else_part) = &self.else_part {
             else_part.generate(gen)?;
         }
-        gen.emit_label(&end)?;
-        Ok(0)
+        gen.emit_label(&end)
     }
 }

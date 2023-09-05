@@ -131,8 +131,7 @@ impl ASTNode for Statement {
                 }
                 gen.pop_stack()?;
                 gen.mov(Reg::current(), Reg::RAX)?;
-                gen.emit("\tret\n")?;
-                Ok(0)
+                gen.ret()
             }
             Statement::VariableDeclaration {
                 variable: _,
@@ -150,13 +149,11 @@ impl ASTNode for Statement {
             Statement::Empty => Ok(0),
             Statement::Continue { label_index } => {
                 let (_, _, condition) = Generator::generate_label_names(*label_index);
-                gen.emit(&format!("\tjmp \t{}\n", condition))?;
-                Ok(0)
+                gen.jmp(&condition)
             }
             Statement::Break { label_index } => {
                 let (_, end, _) = Generator::generate_label_names(*label_index);
-                gen.emit(&format!("\tjmp \t{}\n", end))?;
-                Ok(0)
+                gen.jmp(&end)
             }
             Statement::StatementList(list) => list.generate(gen),
             Statement::TypeDefinition(typedef) => typedef.generate(gen),

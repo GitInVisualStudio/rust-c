@@ -21,6 +21,7 @@ pub enum Reg {
     R15,
     STACK { offset: usize },
     IMMEDIATE(i64),
+    ADDRESS { index: usize, offset: usize },
 }
 
 fn get_index(reg: usize) -> Reg {
@@ -50,7 +51,11 @@ static REGISTER_NAMES: [&str; 14] = [
 
 impl Reg {
     pub fn push() -> Reg {
-        let result = get_index(REIGSTER_INDEX.load(Ordering::Relaxed));
+        let result = REIGSTER_INDEX.load(Ordering::Relaxed);
+        if result == 14 {
+            panic!("Out of registers!");
+        }
+        let result = get_index(result);
         let _ = REIGSTER_INDEX.fetch_add(1, Ordering::Relaxed);
         result
     }
@@ -106,6 +111,27 @@ impl Reg {
             Reg::R15 => 13,
             Reg::STACK { offset: _ } => 14,
             Reg::IMMEDIATE(_) => 15,
+            Reg::ADDRESS {
+                index: _,
+                offset: _,
+            } => 16,
+        }
+    }
+
+    pub fn as_address(&self) -> Reg {
+        Reg::ADDRESS {
+            index: self.index(),
+            offset: 0,
+        }
+    }
+
+    pub fn offset(&self, offset: usize) -> Reg {
+        match self {
+            Reg::ADDRESS { index, offset: _ } => Reg::ADDRESS {
+                index: *index,
+                offset: offset,
+            },
+            _ => panic!("cannot create offset on non-address register!"),
         }
     }
 }
@@ -131,6 +157,14 @@ impl fmt::Display for Reg {
             },
             Reg::STACK { offset } => write!(f, "-{}(%rbp)", offset),
             Reg::IMMEDIATE(value) => write!(f, "${}", value),
+            Reg::ADDRESS { index, offset } => {
+                let prev = Reg::get_size();
+                Reg::set_size(8);
+                let register = format!("{}", get_index(*index));
+                let result = write!(f, "{}({})", offset, register);
+                Reg::set_size(prev);
+                result
+            }
             _ => match Reg::get_size() {
                 1 => write!(f, "%{}b", &base),
                 2 => write!(f, "%{}w", &base),

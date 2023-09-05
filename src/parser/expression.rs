@@ -171,9 +171,9 @@ impl ASTNode for Expression {
                         _ => {
                             expression.generate(gen)?;
                             Reg::set_size(8);
-                            let address = format!("{}", Reg::current());
+                            let address = Reg::current().as_address();
                             Reg::set_size(base_data_type.size());
-                            gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                            gen.mov(address, Reg::current())
                         }
                     }
                 }
@@ -201,14 +201,14 @@ impl ASTNode for Expression {
                     BinaryOps::DIV => {
                         gen.mov(second_reg, Reg::RBX)?;
                         gen.mov(first_reg, Reg::RAX)?;
-                        gen.emit("\tcdq\n")?;
+                        gen.cdq()?;
                         gen.emit_sins("idiv", Reg::RBX)?;
                         gen.mov(Reg::RAX, Reg::current())?
                     }
                     BinaryOps::MOD => {
                         gen.mov(second_reg, Reg::RBX)?;
                         gen.mov(first_reg, Reg::RAX)?;
-                        gen.emit("\tcdq\n")?;
+                        gen.cdq()?;
                         gen.emit_sins("idiv", Reg::RBX)?;
                         gen.mov(Reg::RDX, Reg::current())?
                     }
@@ -234,12 +234,14 @@ impl ASTNode for Expression {
                 let index = Reg::push();
                 operand.generate(gen)?;
                 let address = Reg::pop();
-                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
+
                 Reg::set_size(8);
+                gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                 gen.add(index, address)?;
-                let address = format!("{}", address);
+
+                let address = address.as_address();
                 Reg::set_size(base_data_type.size());
-                gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                gen.mov(address, Reg::current())
             }
             Expression::Assignment(assignment) => assignment.generate(gen),
             Expression::TypeExpression(expression) => expression.generate(gen),
@@ -257,10 +259,12 @@ impl ASTNode for Expression {
                     }
                     data_type => {
                         operand.generate(gen)?;
+
+                        Reg::set_size(8);
                         gen.add(Reg::IMMEDIATE(offset as i64), Reg::current())?;
-                        let address = format!("{}", Reg::current());
+                        let address = Reg::current().as_address();
                         Reg::set_size(data_type.size());
-                        gen.emit(&format!("\tmov \t({}),{}\n", address, Reg::current()))
+                        gen.mov(address, Reg::current())
                     }
                 }
             }
@@ -284,13 +288,13 @@ impl Expression {
             match *operation {
                 BinaryOps::AND => {
                     gen.cmp(Reg::IMMEDIATE(0), first_reg)?;
-                    gen.emit(&format!("\tjne\t\t{}\n", second_expression_label))?;
-                    gen.emit(&format!("\tjmp\t\t{}\n", end_label))
+                    gen.jne(&second_expression_label)?;
+                    gen.jmp(&end_label)
                 }
                 BinaryOps::OR => {
                     gen.cmp(Reg::IMMEDIATE(0), first_reg)?;
-                    gen.emit(&format!("\tje\t\t{}\n", second_expression_label))?;
-                    gen.emit(&format!("\tjmp\t\t{}\n", end_label))
+                    gen.je(&second_expression_label)?;
+                    gen.jmp(&end_label)
                 }
                 _ => panic!("Wrong operation for boolean comparision!"),
             }?;
