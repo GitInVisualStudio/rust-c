@@ -138,7 +138,7 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "\\,",
     "\\%",
     "char",
-    "(\'.\')",
+    "(\'.\')|(\'\\\\.\')",
     "long",
     "\\[",
     "\\]",

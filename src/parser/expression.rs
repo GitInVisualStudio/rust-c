@@ -33,14 +33,14 @@ pub enum BinaryOps {
     GE,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UnaryOps {
     NEG,
     LOGNEG,
     REF,
     DEREF,
     COMPLEMENT,
-    CAST,
+    CAST(DataType),
 }
 
 #[derive(Debug)]
@@ -103,14 +103,12 @@ impl ASTNode for Expression {
                 stack_offset,
                 data_type,
             } => match data_type {
-                DataType::STRUCT(_) => {
-                    gen.lea(
-                        Reg::STACK {
-                            offset: *stack_offset,
-                        },
-                        Reg::current(),
-                    )
-                }
+                DataType::STRUCT(_) => gen.lea(
+                    Reg::STACK {
+                        offset: *stack_offset,
+                    },
+                    Reg::current(),
+                ),
                 x => {
                     Reg::set_size(x.size());
                     gen.mov(
@@ -149,14 +147,12 @@ impl ASTNode for Expression {
                     Expression::NamedVariable {
                         stack_offset,
                         data_type: _,
-                    } => {
-                        gen.lea(
-                            Reg::STACK {
-                                offset: *stack_offset,
-                            },
-                            Reg::current(),
-                        )
-                    }
+                    } => gen.lea(
+                        Reg::STACK {
+                            offset: *stack_offset,
+                        },
+                        Reg::current(),
+                    ),
                     _ => panic!("should not happen!"),
                 },
                 UnaryOps::DEREF => {
@@ -174,7 +170,7 @@ impl ASTNode for Expression {
                         }
                     }
                 }
-                UnaryOps::CAST => expression.generate(gen),
+                UnaryOps::CAST(_) => expression.generate(gen),
             },
             Expression::BinaryExpression {
                 first,
@@ -235,12 +231,12 @@ impl ASTNode for Expression {
                 Reg::set_size(8);
                 gen.mul(Reg::IMMEDIATE(self.data_type().size() as i64), index)?;
                 gen.add(index, address)?;
-                
+
                 match base_data_type.as_ref() {
                     DataType::STRUCT(_) => {
                         Reg::set_size(base_data_type.size());
                         gen.mov(address, Reg::current())
-                    },
+                    }
                     _ => {
                         let address = address.as_address();
                         Reg::set_size(base_data_type.size());
@@ -547,13 +543,30 @@ impl Expression {
     }
 
     fn parse_factor(lexer: &mut Lexer, scope: &mut Scope) -> Result<Rc<Self>, LexerError> {
-        match lexer.peek() {
+        let can_be_cast = lexer.peek() == Token::LPAREN;
+
+        let result = match lexer.peek() {
             Token::SUB | Token::LOGNEG | Token::MUL | Token::REF | Token::COMPLEMENT => {
                 Self::parse_unary(lexer, scope)
             }
             // only literal left to parse
             _ => Self::parse_postfix(lexer, scope),
+        };
+
+        if can_be_cast {
+            return match result.clone()?.as_ref() {
+                Expression::TypeExpression(t) => {
+                    let factor = Self::parse_factor(lexer, scope)?;
+                    Ok(Rc::new(Self::Unary {
+                        expression: factor,
+                        operation: UnaryOps::CAST(t.data_type()),
+                    }))
+                }
+                _ => result,
+            };
         }
+
+        result
     }
 
     fn parse_binary(
@@ -687,14 +700,13 @@ impl Expression {
                 expression,
                 operation: op,
             } => match op {
-                UnaryOps::COMPLEMENT | UnaryOps::NEG | UnaryOps::LOGNEG | UnaryOps::CAST => {
-                    expression.data_type()
-                }
+                UnaryOps::COMPLEMENT | UnaryOps::NEG | UnaryOps::LOGNEG => expression.data_type(),
                 UnaryOps::REF => DataType::PTR(Rc::new(expression.data_type())),
                 UnaryOps::DEREF => match expression.data_type() {
                     DataType::PTR(x) => x.as_ref().clone(),
                     _ => panic!("cannot deref non pointer data-type expression!"),
                 },
+                UnaryOps::CAST(x) => x.clone(),
             },
             Expression::BinaryExpression {
                 first,

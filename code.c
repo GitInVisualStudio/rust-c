@@ -2,6 +2,7 @@ void *malloc(long size);
 void free(void *ptr);
 void putchar(char c);
 void print_int(int i);
+void puts(char* ptr);
 
 void print_int(int i) {
     if (i < 10) {
@@ -18,19 +19,9 @@ struct Point
     int y;
 };
 
-int print_string(char *s)
-{
-    while (*s)
-    {
-        putchar(*s);
-        s = s + 1;
-    }
-    return 0;
-}
-
 int main()
 {
-    struct Point *points = malloc(sizeof(struct Point) * 10);
+    struct Point *points = (struct Point*)malloc(sizeof(struct Point) * 10);
     for (int i = 0; i < 10; i = i + 1)
     {
         struct Point tmp = {.x = i, .y = i * 33};
@@ -39,11 +30,11 @@ int main()
 
     for (int i = 0; i < 10; i = i + 1) {
         struct Point tmp = points[i];
-        print_string("X: ");
+        puts("X: ");
         print_int(tmp.x);
-        print_string(" Y: ");
+        puts(" Y: ");
         print_int(tmp.y);
-        putchar(10);
+        putchar('\n');
     }
     free(points);
     return 0;

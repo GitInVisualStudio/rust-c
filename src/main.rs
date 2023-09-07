@@ -16,7 +16,7 @@ fn main() -> ExitCode {
     match result {
         Ok(value) => {
             let gen = Generator::new(output);
-            // println!("Program: {:#?}", value);
+            println!("Program: {:#?}", value);
             if let Ok(mut gen) = gen {
                 let _ = value.generate(&mut gen);
             }
