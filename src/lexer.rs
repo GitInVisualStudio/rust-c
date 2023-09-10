@@ -104,6 +104,7 @@ impl Lexer<'_> {
         Token::ERR
     }
 
+    #[inline]
     pub fn next(&mut self) -> Token {
         if self.index >= self.tokens.len() {
             return Token::EOF;
@@ -137,14 +138,17 @@ impl Lexer<'_> {
         Ok(self.last_string())
     }
 
+    #[inline]
     pub fn last_string(&self) -> &str {
         self.tokens[self.index - 1].str
     }
 
+    #[inline]
     pub fn peek(&mut self) -> Token {
         self.tokens[self.index].token
     }
 
+    #[inline]
     pub fn peek_str(&mut self) -> &str {
         self.tokens[self.index].str
     }
