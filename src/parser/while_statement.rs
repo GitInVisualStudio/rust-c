@@ -27,11 +27,12 @@ impl ASTNode for WhileStatement {
         lexer.expect_tokens(&[Token::WHILE, Token::LPAREN])?;
         let condition = Expression::parse(lexer, scope)?;
         lexer.expect(Token::RPAREN)?;
-        let body = StatementList::parse(lexer, scope)?;
+        let label_index = Generator::next_label_index();
+        let body: Rc<StatementList> = StatementList::parse(lexer, scope)?;
         Ok(Rc::new(WhileStatement {
             condition,
             body,
-            label_index: Generator::next_label_index(),
+            label_index,
         }))
     }
 

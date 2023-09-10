@@ -14,19 +14,56 @@ pub struct Scope {
 }
 
 pub trait IScope<T> {
-    fn get(&self, name: &str) -> Option<Rc<T>>;
+    fn get(&self, name: &str) -> Option<&T>;
+    fn get_rc(&self, name: &str) -> Option<Rc<T>>;
     fn add(&mut self, value: Rc<T>);
 }
 
-impl IScope<Variable> for Scope {
-    fn get(&self, name: &str) -> Option<Rc<Variable>> {
-        for vars in &self.variables {
-            if let Some(x) = vars.iter().find(|x| x.name() == name) {
+macro_rules! scope_get {
+    ($t: ty, $var: ident) => {
+        fn get(&self, name: &str) -> Option<&$t> {
+            for vars in &self.$var {
+                if let Some(x) = vars.iter().find(|x| x.name() == name) {
+                    return Some(x);
+                }
+            }
+            None
+        }
+        fn get_rc(&self, name: &str) -> Option<Rc<$t>> {
+            for vars in &self.$var {
+                if let Some(x) = vars.iter().find(|x| x.name() == name) {
+                    return Some(x.clone());
+                }
+            }
+            None
+        }
+    };
+}
+
+macro_rules! scope {
+    ($t: ty, $var: ident) => {
+        fn get(&self, name: &str) -> Option<&$t> {
+            if let Some(x) = self.$var.iter().find(|x| x.name() == name) {
+                return Some(x);
+            }
+            None
+        }
+
+        fn get_rc(&self, name: &str) -> Option<Rc<$t>> {
+            if let Some(x) = self.$var.iter().find(|x| x.name() == name) {
                 return Some(x.clone());
             }
+            None
         }
-        None
-    }
+
+        fn add(&mut self, value: Rc<$t>) {
+            self.$var.push(value);
+        }
+    };
+}
+
+impl IScope<Variable> for Scope {
+    scope_get!(Variable, variables);
 
     fn add(&mut self, value: Rc<Variable>) {
         let vars = self.variables.last_mut();
@@ -41,14 +78,7 @@ impl IScope<Variable> for Scope {
 }
 
 impl IScope<Function> for Scope {
-    fn get(&self, name: &str) -> Option<Rc<Function>> {
-        for funcs in &self.functions {
-            if let Some(x) = funcs.iter().find(|x| x.name() == name) {
-                return Some(x.clone());
-            }
-        }
-        None
-    }
+    scope_get!(Function, functions);
 
     fn add(&mut self, value: Rc<Function>) {
         let funcs = self.functions.last_mut();
@@ -60,29 +90,11 @@ impl IScope<Function> for Scope {
 }
 
 impl IScope<TypeDefinition> for Scope {
-    fn get(&self, name: &str) -> Option<Rc<TypeDefinition>> {
-        if let Some(x) = self.typedefs.iter().find(|x| x.name() == name) {
-            return Some(x.clone());
-        }
-        None
-    }
-
-    fn add(&mut self, value: Rc<TypeDefinition>) {
-        self.typedefs.push(value);
-    }
+    scope!(TypeDefinition, typedefs);
 }
 
 impl IScope<Struct> for Scope {
-    fn get(&self, name: &str) -> Option<Rc<Struct>> {
-        if let Some(x) = self.structs.iter().find(|x| x.name() == name) {
-            return Some(x.clone());
-        }
-        None
-    }
-
-    fn add(&mut self, value: Rc<Struct>) {
-        self.structs.push(value);
-    }
+    scope!(Struct, structs);
 }
 
 impl Scope {
@@ -119,5 +131,13 @@ impl Scope {
 
     pub fn get_structs(&self) -> &Vec<Rc<Struct>> {
         &self.structs
+    }
+
+    pub fn contains<T>(&self, name: &str) -> bool
+    where
+        Scope: IScope<T>,
+    {
+        let contains: Option<&T> = self.get(name);
+        contains.is_some()
     }
 }

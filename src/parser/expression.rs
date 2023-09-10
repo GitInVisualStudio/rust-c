@@ -352,38 +352,33 @@ impl Expression {
                 Ok(Rc::new(Self::CharLiteral(value)))
             }
             Token::IDENT => {
-                lexer.next();
-                let contains: Option<Rc<Struct>> = scope.get(lexer.last_string());
-                lexer.set_back(lexer.last_string().len());
-                if let Some(_) = contains {
+                let name = lexer.peek_str();
+                if scope.contains::<Struct>(name) {
+                    Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
+                        lexer, scope,
+                    )?)))
+                } else if scope.contains::<TypeDefinition>(name) {
                     Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
                         lexer, scope,
                     )?)))
                 } else {
-                    let contains: Option<Rc<TypeDefinition>> = scope.get(lexer.last_string());
-                    if let Some(_) = contains {
-                        Ok(Rc::new(Self::TypeExpression(TypeExpression::parse(
-                            lexer, scope,
-                        )?)))
-                    } else {
-                        let name = lexer.expect(Token::IDENT)?.to_string();
+                    let name = lexer.expect(Token::IDENT)?.to_string();
 
-                        match lexer.peek() {
-                            Token::LPAREN => Ok(Rc::new(Self::FunctionCall(
-                                FunctionCall::parse_name(name, lexer, scope)?,
-                            ))),
-                            _ => {
-                                let contains: Option<Rc<Variable>> = scope.get(&name);
-                                if let None = contains {
-                                    return lexer.error(format!("Variable {} not found!", name));
-                                }
-                                let var = contains.unwrap();
-                                let offset = var.offset();
-                                Ok(Rc::new(Self::NamedVariable {
-                                    stack_offset: offset,
-                                    data_type: var.data_type(),
-                                }))
+                    match lexer.peek() {
+                        Token::LPAREN => Ok(Rc::new(Self::FunctionCall(FunctionCall::parse_name(
+                            name, lexer, scope,
+                        )?))),
+                        _ => {
+                            let contains: Option<&Variable> = scope.get(&name);
+                            if let None = contains {
+                                return lexer.error(format!("Variable {} not found!", name));
                             }
+                            let var = contains.unwrap();
+                            let offset = var.offset();
+                            Ok(Rc::new(Self::NamedVariable {
+                                stack_offset: offset,
+                                data_type: var.data_type(),
+                            }))
                         }
                     }
                 }

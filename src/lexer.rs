@@ -78,7 +78,7 @@ impl Lexer {
             .iter()
             .map(|(token, regex)| (token, regex.find_at(&self.content, self.index)))
             .filter_map(|(token, x)| match x {
-                Some(m) if m.start() == self.index => Some((token, m.end())),
+                Some(m) if m.start() == self.index && m.len() > 0 => Some((token, m.end())),
                 Some(_) => None,
                 None => None,
             })
@@ -126,6 +126,16 @@ impl Lexer {
     pub fn peek(&mut self) -> Token {
         let last_index = self.last_index;
         let result = self.next();
+        // reset the index again
+        self.index = self.last_index;
+        self.last_index = last_index;
+        result
+    }
+
+    pub fn peek_str(&mut self) -> &str {
+        let last_index = self.last_index;
+        self.next();
+        let result = &self.content[self.last_index..self.index];
         // reset the index again
         self.index = self.last_index;
         self.last_index = last_index;

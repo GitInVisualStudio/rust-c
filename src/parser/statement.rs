@@ -88,22 +88,15 @@ impl ASTNode for Statement {
                 Self::parse_variable_declaration(lexer, scope)
             }
             Token::IDENT => {
-                lexer.next();
-                let contains: Option<Rc<Struct>> = scope.get(lexer.last_string());
-                if let Some(_) = contains {
-                    lexer.set_back(lexer.last_string().len());
+                let name = lexer.peek_str();
+                if scope.contains::<Struct>(name) {
+                    Self::parse_variable_declaration(lexer, scope)
+                } else if scope.contains::<TypeDefinition>(name) {
                     Self::parse_variable_declaration(lexer, scope)
                 } else {
-                    let contains: Option<Rc<TypeDefinition>> = scope.get(lexer.last_string());
-                    if let Some(_) = contains {
-                        lexer.set_back(lexer.last_string().len());
-                        Self::parse_variable_declaration(lexer, scope)
-                    } else {
-                        lexer.set_back(lexer.last_string().len());
-                        Ok(Rc::new(Self::SingleExpression {
-                            expression: Expression::parse(lexer, scope)?,
-                        }))
-                    }
+                    Ok(Rc::new(Self::SingleExpression {
+                        expression: Expression::parse(lexer, scope)?,
+                    }))
                 }
             }
             Token::TYPEDEF => Ok(Rc::new(Self::TypeDefinition(TypeDefinition::parse(
@@ -178,8 +171,7 @@ impl Statement {
         let var = Variable::new(&name, expression.data_type(), scope.stack_size());
         let mut var = Rc::new(var);
 
-        let contains: Option<Rc<Variable>> = scope.get(&name);
-        if let Some(_) = contains {
+        if scope.contains::<Variable>(&name) {
             return lexer.error(format!("Variable {} already declared in scope!", name));
         }
 

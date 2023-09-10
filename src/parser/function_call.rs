@@ -67,14 +67,13 @@ impl FunctionCall {
         lexer: &mut Lexer,
         scope: &mut Scope,
     ) -> Result<Rc<Self>, crate::lexer::LexerError> {
-        let function: Option<Rc<Function>> = scope.get(&name);
+        let function: Option<&Function> = scope.get(&name);
         if let None = function {
             return lexer.error(format!("Cannot call undefined function {}!", name));
         }
-
-        let return_type = function.clone().unwrap().return_type();
+        let function = function.unwrap();
+        let return_type = function.return_type();
         let data_types: Vec<DataType> = function
-            .unwrap()
             .parameter()
             .iter()
             .map(|x| x.data_type())

@@ -30,7 +30,7 @@ impl ASTNode for TypeExpression {
             Token::STRUCT => Self::parse_struct(lexer, scope)?,
             Token::IDENT => {
                 let name = lexer.last_string().to_string();
-                let typedef: Option<Rc<TypeDefinition>> = scope.get(&name);
+                let typedef: Option<&TypeDefinition> = scope.get(&name);
                 if typedef.is_none() {
                     return lexer.error(format!("was not able to find type: {}", name));
                 }
@@ -86,8 +86,7 @@ impl TypeExpression {
                 }
                 lexer.next();
 
-                let contains: Option<Rc<Struct>> = scope.get(&name);
-                if let Some(_) = contains {
+                if scope.contains::<Struct>(&name) {
                     return lexer.error(format!("Struct '{}' already defined!", name));
                 }
 
@@ -96,19 +95,19 @@ impl TypeExpression {
                 Ok(DataType::STRUCT(result))
             }
             Token::IDENT => {
-                let contains: Option<Rc<Struct>> = scope.get(&name);
+                let contains: Option<Rc<Struct>> = scope.get_rc(&name);
                 if let Some(x) = contains {
-                    return Ok(DataType::STRUCT(x));
+                    return Ok(DataType::STRUCT(x.clone()));
                 }
                 lexer.error(format!("No struct wit name '{}' found!", name))
             }
             _ => {
-                let contains: Option<Rc<Struct>> = scope.get(&name);
+                let contains: Option<Rc<Struct>> = scope.get_rc(&name);
                 if let Some(x) = contains {
-                    return Ok(DataType::STRUCT(x))
+                    return Ok(DataType::STRUCT(x.clone()));
                 }
                 lexer.error(format!("Cannot find struct with name: '{}'", name))
-            },
+            }
         }
     }
 }

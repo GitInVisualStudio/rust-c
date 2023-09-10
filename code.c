@@ -32,8 +32,9 @@ int main()
         struct Point tmp = points[i];
         puts("X: ");
         print_int(tmp.x);
-        puts(" Y: ");
+        puts("\nY: ");
         print_int(tmp.y);
+        putchar('\n');
         putchar('\n');
     }
     free(points);

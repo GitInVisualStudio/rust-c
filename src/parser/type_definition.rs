@@ -23,8 +23,7 @@ impl ASTNode for TypeDefinition {
         let expression = TypeExpression::parse(lexer, scope)?;
         let name = lexer.expect(Token::IDENT)?.to_string();
 
-        let contains: Option<Rc<TypeDefinition>> = scope.get(&name);
-        if contains.is_some() {
+        if scope.contains::<TypeDefinition>(&name) {
             return lexer.error(format!("Type {} already defined!", name));
         }
 

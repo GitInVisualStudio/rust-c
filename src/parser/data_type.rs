@@ -15,7 +15,7 @@ pub enum DataType {
     STRUCT(Rc<Struct>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Struct {
     name: String,
     fields: Vec<Variable>,
