@@ -1,24 +1,29 @@
+pub mod array_expression;
+pub mod assignment;
+pub mod data_type;
 pub mod expression;
+pub mod for_statement;
 pub mod function;
+pub mod function_call;
 pub mod generator;
 pub mod if_statement;
 pub mod program;
 pub mod scope;
 pub mod statement;
 pub mod statement_list;
-pub mod variable;
-pub mod for_statement;
-pub mod while_statement;
-pub mod function_call;
-pub mod type_expression;
-pub mod array_expression;
-pub mod assignment;
-pub mod type_definition;
-pub mod data_type;
 pub mod struct_expression;
+pub mod type_definition;
+pub mod type_expression;
+pub mod variable;
+pub mod while_statement;
 
 use crate::lexer::{Lexer, LexerError};
-use std::{fmt::Debug, io::Error, rc::Rc};
+use std::{
+    fmt::Debug,
+    fs::File,
+    io::{Error, Read},
+    rc::Rc,
+};
 
 use self::{generator::Generator, program::Program, scope::Scope};
 
@@ -33,8 +38,12 @@ pub trait ASTNode: Debug {
 }
 
 pub fn parse(file_name: &str) -> Result<Rc<Program>, LexerError> {
-    // i have to propagate the error message correctly!
-    let mut lexer = Lexer::new(file_name).expect("was not able to open file!");
+    let mut file = File::open(file_name).expect("cannot open file!");
+    let mut content = String::new();
+    file.read_to_string(&mut content)
+        .expect("error while reading file!");
+
+    let mut lexer = Lexer::new(&content);
     let mut scope = Scope::new();
     scope.push();
     Program::parse(&mut lexer, &mut scope)
