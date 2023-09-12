@@ -13,10 +13,15 @@ void print_int(int i) {
     putchar(i % 10 + '0');
 }
 
+typedef struct Inner {
+    int z;
+} Inner;
+
 struct Point
 {
     int x;
     int y;
+    Inner inner;
 };
 
 int main()
@@ -24,7 +29,8 @@ int main()
     struct Point *points = (struct Point*)malloc(sizeof(struct Point) * 10);
     for (int i = 0; i < 10; i = i + 1)
     {
-        struct Point tmp = {.x = i, .y = i * 33};
+        struct Point tmp = {.x = i, .y = i * 33, .inner = {.z = i * 2}};
+        tmp.inner = (struct Inner){.z = 5};
         points[i] = tmp;
     }
 
@@ -34,6 +40,8 @@ int main()
         print_int(tmp.x);
         puts("\nY: ");
         print_int(tmp.y);
+        puts("\nY: ");
+        print_int(tmp.inner.z);
         putchar('\n');
         putchar('\n');
     }

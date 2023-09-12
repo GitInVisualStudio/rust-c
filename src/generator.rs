@@ -728,22 +728,40 @@ impl Visitor<&Assignment, Result<usize, Error>> for Generator {
                 offset,
                 address,
                 value,
-            } => {
-                self.accept(address.as_ref())?;
-                let address = Reg::push();
-                self.accept(value)?;
-                let value = Reg::current();
+            } => match value.data_type() {
+                DataType::STRUCT(_) => {
+                    self.accept(address.as_ref())?;
+                    let address = Reg::push();
 
-                // add the offset
-                Reg::set_size(8);
-                self.add(Reg::IMMEDIATE(*offset as i64), address)?;
+                    self.accept(value)?;
+                    let from = Reg::current();
 
-                let address = address.as_address();
-                Reg::set_size(visitor.data_type().size());
-                let result = self.mov(value, address);
-                Reg::pop();
-                result
-            }
+                    // add the offset
+                    Reg::set_size(8);
+                    self.add(Reg::IMMEDIATE(*offset as i64), address)?;
+
+                    Reg::set_size(visitor.data_type().size());
+                    let result = self.mov_bytes(from, address, value.data_type().size());
+                    Reg::pop();
+                    result
+                }
+                _ => {
+                    self.accept(address.as_ref())?;
+                    let address = Reg::push();
+                    self.accept(value)?;
+                    let value = Reg::current();
+
+                    // add the offset
+                    Reg::set_size(8);
+                    self.add(Reg::IMMEDIATE(*offset as i64), address)?;
+
+                    let address = address.as_address();
+                    Reg::set_size(visitor.data_type().size());
+                    let result = self.mov(value, address);
+                    Reg::pop();
+                    result
+                }
+            },
         }
     }
 }

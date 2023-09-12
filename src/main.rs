@@ -14,7 +14,7 @@ use crate::generator::Generator;
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().into_iter().collect();
     if args.len() < 3 {
-        println!("Usage: ./rust-compiler 'code.c' 'output.s'");
+        println!("Usage: ./rust-compiler 'code.c' 'output.s' [-ast]");
         return ExitCode::FAILURE;
     }
     let code = &args[1];
@@ -29,10 +29,12 @@ fn main() -> ExitCode {
     match program {
         Ok(program) => {
             let mut gen = Generator::new(output).expect("can't write to output File");
-            // println!("Program: {:#?}", program);
+            if args.contains(&"-ast".into()) {
+                println!("{:#?}", program);
+            }
             let result = gen.generate(&program);
             match result {
-                Ok(_) => println!("Finished compiling!"),
+                Ok(_) => (),
                 Err(x) => println!("{}", x.to_string()),
             }
             ExitCode::SUCCESS

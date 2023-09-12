@@ -4,7 +4,7 @@ COMPILER = target/debug/rust-compiler
 build:
 	cargo build
 run:
-	cargo run code.c output.s
+	cargo run code.c output.s -ast
 asm: run
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
