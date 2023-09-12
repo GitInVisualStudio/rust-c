@@ -1,8 +1,15 @@
+pub mod ast;
 pub mod lexer;
 pub mod parser;
+mod generator;
 
-use parser::{generator::Generator, ASTNode};
-use std::{env, process::ExitCode};
+use std::{env, fs::File, io::Read, process::ExitCode};
+
+use ast::program::Program;
+use lexer::LexerError;
+use parser::{Parse, Parser};
+
+use crate::generator::Generator;
 
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().into_iter().collect();
@@ -12,13 +19,21 @@ fn main() -> ExitCode {
     }
     let code = &args[1];
     let output = &args[2];
-    let result = parser::parse(code);
-    match result {
-        Ok(value) => {
-            let gen = Generator::new(output);
-            // println!("Program: {:#?}", value);
-            if let Ok(mut gen) = gen {
-                let _ = value.generate(&mut gen);
+    let mut file = File::open(code).expect("can't open file!");
+    let mut content = String::new();
+    file.read_to_string(&mut content).expect("can't read file");
+
+    let mut parser = Parser::new(&content);
+    let program: Result<Program, LexerError> = parser.parse();
+
+    match program {
+        Ok(program) => {
+            let mut gen = Generator::new(output).expect("can't write to output File");
+            // println!("Program: {:#?}", program);
+            let result = gen.generate(&program);
+            match result {
+                Ok(_) => println!("Finished compiling!"),
+                Err(x) => println!("{}", x.to_string()),
             }
             ExitCode::SUCCESS
         }
@@ -27,12 +42,4 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-    // use lexer::tokens::Token;
-    // let lexer = lexer::Lexer::new("code.c");
-    // if let Ok(mut lexer) = lexer {
-    //     while lexer.peek() != Token::EOF {
-    //         println!("{:?}",lexer.next());
-    //     }
-    // }
-    // ExitCode::SUCCESS
 }

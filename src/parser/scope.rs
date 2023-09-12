@@ -1,22 +1,21 @@
 use std::rc::Rc;
 
-use super::{
+use crate::ast::{
     data_type::Struct, function::Function, type_definition::TypeDefinition, variable::Variable,
 };
 
 #[derive(Debug)]
 pub struct Scope {
     functions: Vec<Vec<Rc<Function>>>,
-    variables: Vec<Vec<Rc<Variable>>>,
-    typedefs: Vec<Rc<TypeDefinition>>,
+    variables: Vec<Vec<Variable>>,
+    typedefs: Vec<TypeDefinition>,
     structs: Vec<Rc<Struct>>,
     stack_offset: usize,
 }
 
 pub trait IScope<T> {
     fn get(&self, name: &str) -> Option<&T>;
-    fn get_rc(&self, name: &str) -> Option<Rc<T>>;
-    fn add(&mut self, value: Rc<T>);
+    fn add(&mut self, value: T);
 }
 
 macro_rules! scope_get {
@@ -25,14 +24,6 @@ macro_rules! scope_get {
             for vars in &self.$var {
                 if let Some(x) = vars.iter().find(|x| x.name() == name) {
                     return Some(x);
-                }
-            }
-            None
-        }
-        fn get_rc(&self, name: &str) -> Option<Rc<$t>> {
-            for vars in &self.$var {
-                if let Some(x) = vars.iter().find(|x| x.name() == name) {
-                    return Some(x.clone());
                 }
             }
             None
@@ -49,14 +40,7 @@ macro_rules! scope {
             None
         }
 
-        fn get_rc(&self, name: &str) -> Option<Rc<$t>> {
-            if let Some(x) = self.$var.iter().find(|x| x.name() == name) {
-                return Some(x.clone());
-            }
-            None
-        }
-
-        fn add(&mut self, value: Rc<$t>) {
+        fn add(&mut self, value: $t) {
             self.$var.push(value);
         }
     };
@@ -65,7 +49,7 @@ macro_rules! scope {
 impl IScope<Variable> for Scope {
     scope_get!(Variable, variables);
 
-    fn add(&mut self, value: Rc<Variable>) {
+    fn add(&mut self, value: Variable) {
         let vars = self.variables.last_mut();
         match vars {
             Some(x) => {
@@ -77,8 +61,8 @@ impl IScope<Variable> for Scope {
     }
 }
 
-impl IScope<Function> for Scope {
-    scope_get!(Function, functions);
+impl IScope<Rc<Function>> for Scope {
+    scope_get!(Rc<Function>, functions);
 
     fn add(&mut self, value: Rc<Function>) {
         let funcs = self.functions.last_mut();
@@ -93,12 +77,12 @@ impl IScope<TypeDefinition> for Scope {
     scope!(TypeDefinition, typedefs);
 }
 
-impl IScope<Struct> for Scope {
-    scope!(Struct, structs);
+impl IScope<Rc<Struct>> for Scope {
+    scope!(Rc<Struct>, structs);
 }
 
 impl Scope {
-    pub fn new() -> Scope {
+    pub fn new<'a>() -> Scope {
         Scope {
             functions: Vec::new(),
             variables: Vec::new(),

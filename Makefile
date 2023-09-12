@@ -15,7 +15,7 @@ test:
 cmp:
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)
-run-test: 
+run-test: build
 	python3 tests/test.py  $(COMPILER)
 
 valgrind: run
