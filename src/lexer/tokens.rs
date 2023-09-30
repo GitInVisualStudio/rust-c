@@ -44,9 +44,13 @@ pub enum Token {
     STRUCT,
     DOT,
     SIZEOF,
+    HASHTAG,
+    DEFINE,
+    INCLUDE,
+    TYPEOF,
+    ESCAPELINE,
     IDENT,
     EOF,
-    ERR,
 }
 
 impl Token {
@@ -96,9 +100,14 @@ impl Token {
             41 => Token::STRUCT,
             42 => Token::DOT,
             43 => Token::SIZEOF,
-            44 => Token::IDENT,
-            45 => Token::EOF,
-            _ => Token::ERR,
+            44 => Token::HASHTAG,
+            45 => Token::DEFINE,
+            46 => Token::INCLUDE,
+            47 => Token::TYPEOF,
+            48 => Token::ESCAPELINE,
+            49 => Token::IDENT,
+            50 => Token::EOF,
+            _ => todo!()
         }
     }
 }
@@ -148,5 +157,10 @@ pub static TOKEN_PATTERN: &'static [&'static str] = &[
     "struct",
     "\\.",
     "sizeof",
+    "#",
+    "define",
+    "include",
+    "typeof",
+    "\\\\\\\n",
     "\\w+",
 ];

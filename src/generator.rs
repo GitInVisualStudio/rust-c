@@ -168,39 +168,19 @@ impl Generator {
         let mut bytes_to_copy = total_size;
         let from = from.as_address();
         while bytes_to_copy > 0 {
-            match bytes_to_copy {
-                1 => {
-                    let bytes = 1;
-                    Reg::set_size(bytes);
-                    self.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
-                    self.mov(Reg::current(), to.as_address())?;
-                    self.add(Reg::IMMEDIATE(bytes as i64), to)?;
-                    bytes_to_copy -= bytes
-                }
-                2..=3 => {
-                    let bytes = 2;
-                    Reg::set_size(bytes);
-                    self.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
-                    self.mov(Reg::current(), to.as_address())?;
-                    self.add(Reg::IMMEDIATE(bytes as i64), to)?;
-                    bytes_to_copy -= bytes
-                }
-                4..=7 => {
-                    let bytes = 4;
-                    Reg::set_size(bytes);
-                    self.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
-                    self.mov(Reg::current(), to.as_address())?;
-                    self.add(Reg::IMMEDIATE(bytes as i64), to)?;
-                    bytes_to_copy -= bytes
-                }
-                _ => {
-                    let bytes = 8;
-                    Reg::set_size(bytes);
-                    self.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
-                    self.mov(Reg::current(), to.as_address())?;
-                    self.add(Reg::IMMEDIATE(bytes as i64), to)?;
-                    bytes_to_copy -= bytes
-                }
+            let bytes = match bytes_to_copy {
+                1 => 1,
+                2..=3 => 2,
+                4..=7 => 4,
+                _ => 8
+            };
+            Reg::set_size(bytes);
+            self.mov(from.offset(total_size - bytes_to_copy), Reg::current())?;
+            self.mov(Reg::current(), to.as_address())?;
+            Reg::set_size(8);
+            bytes_to_copy -= bytes;
+            if bytes_to_copy > 0 {
+                self.add(Reg::IMMEDIATE(bytes as i64), to)?;
             }
         }
         Ok(0)
@@ -620,7 +600,8 @@ impl Visitor<&Assignment, Result<usize, Error>> for Generator {
             Assignment::VariableAssignment {
                 stack_offset,
                 expression,
-            } => match expression.data_type() {
+                data_type,
+            } => match data_type {
                 DataType::STRUCT(_) => {
                     self.accept(expression)?;
                     let from = Reg::push();
@@ -631,15 +612,15 @@ impl Visitor<&Assignment, Result<usize, Error>> for Generator {
                         },
                         to,
                     )?;
-                    let result = self.mov_bytes(from, to, expression.data_type().size());
+                    let result = self.mov_bytes(from, to, data_type.size());
                     Reg::pop();
                     Reg::pop();
 
                     result
                 }
                 _ => {
-                    Reg::set_size(visitor.data_type().size());
                     self.accept(expression)?;
+                    Reg::set_size(data_type.size());
                     self.mov(
                         Reg::current(),
                         Reg::STACK {
@@ -734,7 +715,7 @@ impl Visitor<&Assignment, Result<usize, Error>> for Generator {
                     let address = Reg::push();
 
                     self.accept(value)?;
-                    let from = Reg::current();
+                    let from = Reg::push();
 
                     // add the offset
                     Reg::set_size(8);
@@ -742,6 +723,7 @@ impl Visitor<&Assignment, Result<usize, Error>> for Generator {
 
                     Reg::set_size(visitor.data_type().size());
                     let result = self.mov_bytes(from, address, value.data_type().size());
+                    Reg::pop();
                     Reg::pop();
                     result
                 }

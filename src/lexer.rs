@@ -1,4 +1,5 @@
 use core::fmt;
+use derive_getters::Getters;
 use regex::Regex;
 pub mod tokens;
 
@@ -16,12 +17,13 @@ pub struct Lexer<'a> {
     tokens: Vec<TokenView<'a>>,
 }
 
-#[derive(Clone, Copy)]
-struct TokenView<'a> {
+#[derive(Clone, Copy, Getters)]
+pub struct TokenView<'a> {
     token: Token,
     str: &'a str,
     line: usize,
     col: usize,
+    index: usize,
 }
 
 impl Lexer<'_> {
@@ -35,7 +37,6 @@ impl Lexer<'_> {
     }
 
     pub fn new(content: &str) -> Lexer {
-
         let patterns: Vec<(Token, Regex)> = TOKEN_PATTERN
             .iter()
             .enumerate()
@@ -61,15 +62,16 @@ impl Lexer<'_> {
                     column = 0;
                 }
             }
-            
+
             tokens.push(TokenView {
                 token: next_token,
                 str: token_string.trim(),
                 line: line_breaks,
                 col: column,
+                index: last_index,
             });
 
-            if next_token == Token::EOF || next_token == Token::ERR {
+            if next_token == Token::EOF {
                 break;
             }
         }
@@ -101,7 +103,8 @@ impl Lexer<'_> {
             *index = end;
             return token.clone();
         }
-        Token::ERR
+
+        panic!("was not able to tokinize {content}");
     }
 
     #[inline]
@@ -112,6 +115,20 @@ impl Lexer<'_> {
         let token = self.tokens[self.index].token;
         self.index += 1;
         token
+    }
+
+    pub fn current(&self) -> Token {
+        if self.index == self.tokens.len() {
+            return self.tokens.last().unwrap().token;
+        }
+        self.tokens[self.index].token
+    }
+
+    pub fn current_view(&self) -> TokenView {
+        if self.index == self.tokens.len() {
+            return *self.tokens.last().unwrap();
+        }
+        self.tokens[self.index]
     }
 
     pub fn expect(&mut self, token: Token) -> Result<&str, LexerError> {
@@ -140,6 +157,9 @@ impl Lexer<'_> {
 
     #[inline]
     pub fn last_string(&self) -> &str {
+        if self.tokens[self.index - 1].token == Token::ESCAPELINE {
+            return "\\\n"
+        }
         self.tokens[self.index - 1].str
     }
 
@@ -151,6 +171,32 @@ impl Lexer<'_> {
     #[inline]
     pub fn peek_str(&mut self) -> &str {
         self.tokens[self.index].str
+    }
+
+    pub fn reset(&mut self) {
+        self.index = 0;
+    }
+
+    pub fn consume_line(&mut self) {
+        let start = self.current_line();
+        loop {
+            self.next();
+            if self.current() == Token::ESCAPELINE {
+                self.consume_line();
+                break;
+            }
+            if self.current_view().line != start || self.current() == Token::EOF {
+                break;
+            }
+        }
+    }
+
+    pub fn current_index(&self) -> usize {
+        return self.current_view().index;
+    }
+
+    pub fn current_line(&self) -> usize {
+        return self.current_view().line;
     }
 }
 

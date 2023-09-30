@@ -47,6 +47,7 @@ impl Parse<StructExpression> for Parser<'_> {
             let size = expression.data_type().size();
             assignments.push(Assignment::VariableAssignment {
                 stack_offset: offset,
+                data_type: expression.data_type(),
                 expression: expression,
             });
             offset -= size;
@@ -65,4 +66,3 @@ impl Parse<StructExpression> for Parser<'_> {
         self.error("Struct expressions does not equal any struct!".to_string())
     }
 }
-

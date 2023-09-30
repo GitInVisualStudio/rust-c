@@ -1,10 +1,12 @@
 OUTPUTFILE = target/debug/output
 COMPILER = target/debug/rust-compiler
 
-build:
-	cargo build
 run:
 	cargo run code.c output.s -ast
+build:
+	cargo build
+tokens:
+	cargo run code.c output.s -tokens
 asm: run
 	gcc -o  $(OUTPUTFILE) output.s
 	./$(OUTPUTFILE)

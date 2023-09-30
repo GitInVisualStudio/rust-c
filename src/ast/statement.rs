@@ -81,7 +81,7 @@ impl Parse<Statement> for Parser<'_> {
                 let statement = self.parse()?;
                 return Ok(Statement::WhileStatement(statement));
             }
-            Token::INT | Token::CHAR | Token::LONG | Token::VOID | Token::STRUCT => {
+            Token::INT | Token::CHAR | Token::LONG | Token::VOID | Token::STRUCT | Token::TYPEOF => {
                 Statement::parse_variable_declaration(self)
             }
             Token::IDENT => {
@@ -101,7 +101,7 @@ impl Parse<Statement> for Parser<'_> {
             Token::SEMIC => Ok(Statement::Empty),
             Token::LCURL => {
                 let list = self.parse()?;
-                return Ok(Statement::StatementList(list))
+                return Ok(Statement::StatementList(list));
             }
             _ => {
                 let expr = self.parse()?;
@@ -158,6 +158,7 @@ impl Statement {
                     expression: Some(Assignment::VariableAssignment {
                         stack_offset: var.offset(),
                         expression: expression,
+                        data_type: var.data_type(),
                     }),
                     variable: var,
                 }

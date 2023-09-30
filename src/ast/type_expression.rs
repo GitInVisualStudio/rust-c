@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
+    ast::expression::Expression,
     lexer::{tokens::Token, LexerError},
     parser::{scope::IScope, Parse, Parser},
 };
@@ -8,7 +9,8 @@ use crate::{
 use super::{
     data_type::{DataType, Struct},
     type_definition::TypeDefinition,
-    variable::Variable, ASTNode,
+    variable::Variable,
+    ASTNode,
 };
 
 #[derive(Debug)]
@@ -33,6 +35,13 @@ impl Parse<TypeExpression> for Parser<'_> {
                     return self.error(format!("was not able to find type: {}", name));
                 }
                 typedef.unwrap().data_type()
+            }
+            Token::TYPEOF => {
+                self.expect(Token::LPAREN)?;
+                let expression: Expression = self.parse()?;
+                self.expect(Token::RPAREN)?;
+
+                expression.data_type()
             }
             x => self.error(format!(
                 "Was not able to parse data type of type expression! {:?}",

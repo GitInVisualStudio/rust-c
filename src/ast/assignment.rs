@@ -15,6 +15,7 @@ use super::{
 pub enum Assignment {
     VariableAssignment {
         stack_offset: usize,
+        data_type: DataType,
         expression: Expression,
     },
     PtrAssignment {
@@ -49,6 +50,7 @@ impl Parse<Assignment> for Parser<'_> {
                 Assignment::VariableAssignment {
                     stack_offset: *stack_offset,
                     expression: expression,
+                    data_type: data_type.clone(),
                 }
             }
             Expression::Indexing { index, operand } => {
@@ -103,8 +105,9 @@ impl Assignment {
         match self {
             Assignment::VariableAssignment {
                 stack_offset: _,
-                expression,
-            } => expression.data_type(),
+                expression: _,
+                data_type,
+            } => data_type.clone(),
             Assignment::PtrAssignment { value: _, address } => match address.data_type() {
                 DataType::PTR(x) => x.as_ref().clone(),
                 x => x.clone(),
