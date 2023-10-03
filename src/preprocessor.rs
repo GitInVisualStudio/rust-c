@@ -1,4 +1,4 @@
-use crate::lexer::{tokens::Token, Lexer, LexerError};
+use crate::lexer::{tokens::Token, Lexer, };
 
 pub struct Preprocessor<'a> {
     lexer: Lexer<'a>,
@@ -46,7 +46,7 @@ impl Preprocessor<'_> {
         }
     }
 
-    pub fn expand(&mut self) -> Result<String, LexerError> {
+    pub fn expand(&mut self) -> Result<String, > {
         let mut output = String::new();
 
         loop {
@@ -87,7 +87,7 @@ impl Preprocessor<'_> {
         Ok(output)
     }
 
-    fn parse_define(&mut self, output: &mut String) -> Result<Macro, LexerError> {
+    fn parse_define(&mut self, output: &mut String) -> Result<Macro, > {
         output.push_str(&"\n#");
         output.push_str(self.lexer.expect(Token::DEFINE)?);
         output.push(' ');
@@ -139,7 +139,7 @@ impl Preprocessor<'_> {
         })
     }
 
-    fn parse_macro(&mut self, output: &mut String) -> Result<(), LexerError> {
+    fn parse_macro(&mut self, output: &mut String) -> Result<(), > {
         match self.lexer.peek() {
             Token::DEFINE => {
                 let parsed_macro = self.parse_define(output)?;
@@ -165,7 +165,7 @@ impl Preprocessor<'_> {
         }
     }
 
-    fn expand_macros(&mut self, output: &mut String) -> Result<bool, LexerError> {
+    fn expand_macros(&mut self, output: &mut String) -> Result<bool, > {
         let name = self.lexer.last_string();
         if let Some(m) = self.macros.iter().find(|x| x.name() == name) {
             self.expanded = true;

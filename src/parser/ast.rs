@@ -1,21 +1,19 @@
 use std::fmt::Debug;
 
-pub mod array_expression;
-pub mod assignment;
-pub mod data_type;
-pub mod expression;
-pub mod for_statement;
-pub mod function;
-pub mod function_call;
-pub mod if_statement;
 pub mod program;
-pub mod statement;
-pub mod statement_list;
-pub mod struct_expression;
 pub mod type_definition;
 pub mod type_expression;
-pub mod variable;
+pub mod array_expression;
+pub mod struct_expression;
+pub mod expression;
+pub mod function_call;
+pub mod assignment;
+pub mod statement;
+pub mod compound_statement;
+pub mod if_statement;
+pub mod for_statement;
 pub mod while_statement;
+pub mod function;
 
 pub trait Visitor<T, R> {
     fn visit(&mut self, visitor: T) -> R;

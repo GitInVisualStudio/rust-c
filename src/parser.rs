@@ -1,77 +1,70 @@
-
-use std::rc::Rc;
+use bumpalo::Bump;
 
 use crate::{
-    ast::{data_type::DataType, expression::Expression},
-    lexer::{tokens::Token, Lexer, LexerError},
+    error::Error,
+    lexer::{tokens::TokenKind, SrcLocation, Token},
 };
 
-use self::scope::Scope;
+use self::ast::expression::Expression;
 
 pub mod scope;
-
-pub trait Parse<T> {
-    fn parse(&mut self) -> Result<T, LexerError>;
-}
+pub mod ast;
 
 pub struct Parser<'a> {
-    pub lexer: Lexer<'a>,
-    pub scope: Scope,
-    pub assignee: Option<Rc<Expression>>,
-    label_index: usize,
+    pub(crate) bump: &'a Bump,
+    pub(crate) assignee: Option<&'a Expression<'a>>,
+    tokens: &'a [Token<'a>],
+    index: usize,
 }
 
-impl Parser<'_> {
-    pub fn new<'a>(content: &'a str) -> Parser<'a> {
-        let lexer = Lexer::new(&content);
-        let scope = Scope::new();
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a [Token<'a>], bump: &'a Bump) -> Self {
         Parser {
-            lexer: lexer,
-            scope: scope,
+            tokens,
+            bump,
+            index: 0,
             assignee: None,
-            label_index: 0,
         }
     }
 
-    pub fn check_data_types(&self, from: &DataType, to: &DataType) -> Result<bool, LexerError> {
-        if *from != *to && !from.can_convert(to.clone()) {
-            return self
-                .lexer
-                .error(format!("Cannot convert {:?} to {:?}!", from, to));
+    pub fn next_kind(&mut self) -> TokenKind {
+        self.next().0
+    }
+
+    pub fn next(&mut self) -> Token<'a> {
+        if self.index >= self.tokens.len() {
+            return *self.tokens.last().unwrap();
         }
-        Ok(true)
+        let token = self.tokens[self.index];
+        self.index += 1;
+        token
     }
 
-    pub fn peek(&mut self) -> Token {
-        self.lexer.peek()
+    pub fn expect(&mut self, token: TokenKind) -> Result<SrcLocation<'a>, Error<'a>> {
+        let (next_token, location) = self.next();
+        if next_token != token {
+            return Err(Error::UnexpectedToken {
+                expected: token,
+                found: next_token,
+                location: location,
+            });
+        }
+        Ok(location)
     }
 
-    pub fn peek_str(&mut self) -> &str {
-        self.lexer.peek_str()
+    pub fn peek(&self) -> TokenKind {
+        self.tokens[self.index].0
     }
 
-    pub fn next(&mut self) -> Token {
-        self.lexer.next()
+    pub fn ahead(&self, count: usize) -> TokenKind {
+        self.tokens[self.index + count].0
     }
 
-    pub fn expect(&mut self, token: Token) -> Result<&str, LexerError> {
-        self.lexer.expect(token)
+    pub fn last_token(&self) -> Token<'a> {
+        self.tokens[self.index - 1]
     }
 
-    pub fn error<T>(&mut self, msg: String) -> Result<T, LexerError> {
-        self.lexer.error(msg)
-    }
-
-    pub fn last_string(&self) -> &str {
-        self.lexer.last_string()
-    }
-
-    pub fn next_label_index(&mut self) -> usize {
-        self.label_index += 1;
-        self.label_index
-    }
-
-    pub fn label_index(&self) -> usize {
-        self.label_index
+    pub fn current(&self) -> Token<'a> {
+        self.tokens[self.index]
     }
 }
