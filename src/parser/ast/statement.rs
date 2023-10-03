@@ -1,9 +1,9 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
 use super::{
     compound_statement::Compound, expression::Expression, for_statement::ForStatement,
-    if_statement::IfStatement, type_definition::TypeDefinition, type_expression::TypeExpression,
-    while_statement::WhileStatement, ASTNode,
+    if_statement::IfStatement, type_definition::TypeDefinition, while_statement::WhileStatement,
+    TypeExpression,
 };
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub enum Statement<'a> {
     TypeDefinition(TypeDefinition<'a>),
     VariableDeclaration {
         name: &'a str,
-        expression: Expression<'a>,
+        expression: TypeExpression<'a>,
         assignment: Option<Expression<'a>>,
     },
     Conitnue,
@@ -25,7 +25,7 @@ pub enum Statement<'a> {
     Empty,
 }
 
-impl ASTNode for Statement<'_> {}
+impl Visitable for Statement<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn statement(&mut self) -> Result<Statement<'a>, Error<'a>> {
@@ -66,24 +66,26 @@ impl<'a> Parser<'a> {
             | TokenKind::STRUCT
             | TokenKind::TYPEOF
             | TokenKind::IDENT => {
-                if self.ahead(1) == TokenKind::ASSIGN {
-                    Ok(Statement::SingleExpression(self.expression()?))
-                } else {
-                    let expression = self.expression()?;
-                    if self.peek() == TokenKind::SEMIC {
-                        Ok(Statement::SingleExpression(expression))
-                    } else {
-                        let name = self.expect(TokenKind::IDENT)?.string();
+                let anchor = self.anchor();
+
+                let expression = self.type_expression()?;
+                let name = self.expect(TokenKind::IDENT);
+                match name {
+                    Ok(name) => {
                         let mut assignment = None;
                         if self.peek() == TokenKind::ASSIGN {
                             self.next();
                             assignment = Some(self.expression()?);
                         }
                         Ok(Statement::VariableDeclaration {
-                            name,
+                            name: name.string(),
                             expression,
                             assignment,
                         })
+                    }
+                    Err(_) => {
+                        self.reset(anchor);
+                        Ok(Statement::SingleExpression(self.expression()?))
                     }
                 }
             }

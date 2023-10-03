@@ -1,6 +1,6 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{type_expression::TypeExpression, ASTNode};
+use super::type_expression::TypeExpression;
 
 #[derive(Debug)]
 pub struct TypeDefinition<'a> {
@@ -8,7 +8,7 @@ pub struct TypeDefinition<'a> {
     pub(crate) expression: TypeExpression<'a>,
 }
 
-impl ASTNode for TypeDefinition<'_> {}
+impl Visitable for TypeDefinition<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn type_def(&mut self) -> Result<TypeDefinition<'a>, Error<'a>> {

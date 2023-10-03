@@ -1,16 +1,16 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{compound_statement::Compound, expression::Expression, statement::Statement, ASTNode};
+use super::{compound_statement::Compound, expression::Expression, statement::Statement};
 
 #[derive(Debug)]
 pub struct ForStatement<'a> {
-    init: &'a Statement<'a>,
-    condition: Expression<'a>,
-    post: Option<Expression<'a>>,
-    body: Compound<'a>,
+    pub(crate) init: &'a Statement<'a>,
+    pub(crate) condition: Expression<'a>,
+    pub(crate) post: Option<Expression<'a>>,
+    pub(crate) body: Compound<'a>,
 }
 
-impl ASTNode for ForStatement<'_> {}
+impl Visitable for ForStatement<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn for_statement(&mut self) -> Result<ForStatement<'a>, Error<'a>> {

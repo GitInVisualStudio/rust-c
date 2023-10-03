@@ -1,14 +1,14 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{ASTNode, expression::Expression};
+use super::expression::Expression;
 
 #[derive(Debug)]
 pub enum ArrayExpression<'a> {
-    StackArray { expressinos: Vec<Expression<'a>> },
+    StackArray { expressions: Vec<Expression<'a>> },
     StringLiteral { string: &'a str },
 }
 
-impl ASTNode for ArrayExpression<'_> {}
+impl Visitable for ArrayExpression<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn array_expression(&mut self) -> Result<ArrayExpression<'a>, Error<'a>> {
@@ -28,7 +28,7 @@ impl<'a> Parser<'a> {
                 }
                 self.next();
                 ArrayExpression::StackArray {
-                    expressinos: expressions,
+                    expressions,
                 }
             }
         })

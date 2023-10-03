@@ -1,6 +1,6 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{compound_statement::Compound, expression::Expression, ASTNode};
+use super::{compound_statement::Compound, expression::Expression};
 
 #[derive(Debug)]
 pub enum ElsePart<'a> {
@@ -16,7 +16,7 @@ pub struct IfStatement<'a> {
     pub(crate) else_part: ElsePart<'a>,
 }
 
-impl ASTNode for IfStatement<'_> {}
+impl Visitable for IfStatement<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn if_statement(&mut self) -> Result<IfStatement<'a>, Error<'a>> {

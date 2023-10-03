@@ -1,7 +1,9 @@
 pub mod error;
-mod generator;
+pub mod generator;
 pub mod lexer;
 pub mod parser;
+pub mod scope_builder;
+pub mod visitor;
 
 use std::{env, process::ExitCode};
 
@@ -9,6 +11,8 @@ use bumpalo::Bump;
 
 use lexer::Lexer;
 use parser::Parser;
+use scope_builder::ScopeBuilder;
+use visitor::Visitable;
 
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().into_iter().collect();
@@ -24,37 +28,16 @@ fn main() -> ExitCode {
     let tokens = bump.alloc(Lexer::tokenize(&content));
     let mut parser = Parser::new(tokens, &bump);
     let program = parser.program();
-    println!("{:#?}", program);
+    let mut scope_builder = ScopeBuilder::new(&bump);
+    match program {
+        Ok(program) => {
+            let finished = program.accept(&mut scope_builder);
+            match finished {
+                Ok(_) => println!("{:#?}\neverything passed!", program),
+                Err(e) => println!("Error building scope: {:#?}\n\n{:#?}", e, program),
+            }
+        }
+        Err(e) => println!("Error while parsing: {:#?}", e),
+    }
     ExitCode::SUCCESS
-    // let mut parser = Parser::new(&content);
-    // if args.contains(&"-tokens".into()) {
-    //     loop {
-    //         let token = parser.next();
-    //         println!("{:?}", token);
-    //         if token == Token::EOF {
-    //             break;
-    //         }
-    //     }
-    //     return ExitCode::SUCCESS;
-    // }
-    // let program: Result<Program, > = parser.parse();
-
-    // match program {
-    //     Ok(program) => {
-    //         let mut gen = Generator::new(output).expect("can't write to output File");
-    //         if args.contains(&"-ast".into()) {
-    //             println!("{:#?}", program);
-    //         }
-    //         let result = gen.generate(&program);
-    //         match result {
-    //             Ok(_) => (),
-    //             Err(x) => println!("{}", x.to_string()),
-    //         }
-    //         ExitCode::SUCCESS
-    //     }
-    //     Err(e) => {
-    //         println!("{:#?}", e);
-    //         ExitCode::FAILURE
-    //     }
-    // }
 }

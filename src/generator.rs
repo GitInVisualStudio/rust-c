@@ -21,7 +21,7 @@
 //     statement_list::StatementList,
 //     struct_expression::StructExpression,
 //     while_statement::WhileStatement,
-//     ASTNode, Visitor,
+//     Visitable, Visitor,
 // };
 
 // use self::register::Reg;
@@ -41,7 +41,7 @@
 
 //     fn accept<'a, T, R>(&mut self, visitor: &'a T) -> R
 //     where
-//         T: ASTNode,
+//         T: Visitable,
 //         Self: Visitor<&'a T, R>,
 //     {
 //         visitor.accept(self)

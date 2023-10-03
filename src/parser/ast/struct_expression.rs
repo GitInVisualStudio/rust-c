@@ -1,13 +1,13 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{expression::Expression, ASTNode};
+use super::expression::Expression;
 
 #[derive(Debug)]
 pub struct StructExpression<'a> {
     pub(crate) fields: Vec<(&'a str, Expression<'a>)>,
 }
 
-impl ASTNode for StructExpression<'_> {}
+impl Visitable for StructExpression<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn struct_expression(&mut self) -> Result<StructExpression<'a>, Error<'a>> {

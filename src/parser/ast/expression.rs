@@ -1,4 +1,4 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
 use super::{
     array_expression::ArrayExpression, assignment::Assignment, function_call::FunctionCall,
@@ -34,7 +34,6 @@ pub enum UnaryOps<'a> {
 
 #[derive(Debug)]
 pub enum Expression<'a> {
-    LongLiteral(i64),
     IntLiteral(i32),
     CharLiteral(u8),
     FunctionCall(FunctionCall<'a>),
@@ -68,6 +67,8 @@ pub enum Expression<'a> {
         operation: BinaryOps,
     },
 }
+
+impl<'a> Visitable for Expression<'a> {}
 
 impl<'a> Parser<'a> {
     pub fn expression(&mut self) -> Result<Expression<'a>, Error<'a>> {

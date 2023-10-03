@@ -3,15 +3,15 @@ use derive_getters::Getters;
 use crate::error::Error;
 use crate::lexer::tokens::TokenKind;
 use crate::parser::Parser;
+use crate::visitor::Visitable;
 
 use super::function::Function;
 use super::statement::Statement;
-use super::ASTNode;
 
 #[derive(Debug)]
 pub enum Decalrations<'a> {
     Statement(Statement<'a>),
-    Function(Function<'a>),
+    Function(&'a Function<'a>),
 }
 
 #[derive(Debug, Getters)]
@@ -19,7 +19,7 @@ pub struct Program<'a> {
     pub(crate) declarations: Vec<Decalrations<'a>>,
 }
 
-impl ASTNode for Program<'_> {}
+impl Visitable for Program<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn program(&mut self) -> Result<Program<'a>, Error<'a>> {
@@ -29,7 +29,7 @@ impl<'a> Parser<'a> {
                 TokenKind::TYPEDEF | TokenKind::STRUCT => {
                     Decalrations::Statement(self.statement()?)
                 }
-                _ => Decalrations::Function(self.function()?),
+                _ => Decalrations::Function(self.bump.alloc(self.function()?)),
             })
         }
         self.expect(TokenKind::EOF)?;

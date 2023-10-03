@@ -1,6 +1,6 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{compound_statement::Compound, type_expression::TypeExpression, ASTNode};
+use super::{compound_statement::Compound, type_expression::TypeExpression};
 
 #[derive(Debug)]
 pub struct Function<'a> {
@@ -10,7 +10,7 @@ pub struct Function<'a> {
     pub(crate) return_type: TypeExpression<'a>,
 }
 
-impl ASTNode for Function<'_> {}
+impl Visitable for Function<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn function(&mut self) -> Result<Function<'a>, Error<'a>> {

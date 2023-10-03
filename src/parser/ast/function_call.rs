@@ -1,6 +1,6 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{expression::Expression, ASTNode};
+use super::expression::Expression;
 
 #[derive(Debug)]
 pub struct FunctionCall<'a> {
@@ -8,7 +8,7 @@ pub struct FunctionCall<'a> {
     pub(crate) parameter: Vec<Expression<'a>>,
 }
 
-impl ASTNode for FunctionCall<'_> {}
+impl Visitable for FunctionCall<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn function_call(&mut self) -> Result<FunctionCall<'a>, Error<'a>> {

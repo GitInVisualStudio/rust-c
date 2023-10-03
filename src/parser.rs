@@ -7,7 +7,6 @@ use crate::{
 
 use self::ast::expression::Expression;
 
-pub mod scope;
 pub mod ast;
 
 pub struct Parser<'a> {
@@ -66,5 +65,13 @@ impl<'a> Parser<'a> {
 
     pub fn current(&self) -> Token<'a> {
         self.tokens[self.index]
+    }
+
+    pub fn anchor(&self) -> usize {
+        self.index
+    }
+
+    pub fn reset(&mut self, anchor: usize) {
+        self.index = anchor
     }
 }

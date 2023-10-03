@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 pub mod program;
 pub mod type_definition;
 pub mod type_expression;
@@ -15,12 +13,18 @@ pub mod for_statement;
 pub mod while_statement;
 pub mod function;
 
-pub trait Visitor<T, R> {
-    fn visit(&mut self, visitor: T) -> R;
-}
 
-pub trait ASTNode: Debug {
-    fn accept<'a, R>(&'a self, visitor: &mut dyn Visitor<&'a Self, R>) -> R where Self: Sized {
-        visitor.visit(&self)
-    }
-}
+pub use program::*;
+pub use type_definition::*;
+pub use type_expression::*;
+pub use array_expression::*;
+pub use struct_expression::*;
+pub use expression::*;
+pub use function_call::*;
+pub use assignment::*;
+pub use statement::*;
+pub use compound_statement::*;
+pub use if_statement::*;
+pub use for_statement::*;
+pub use while_statement::*;
+pub use function::*;

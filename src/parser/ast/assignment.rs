@@ -1,6 +1,6 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{expression::Expression, ASTNode};
+use super::{expression::Expression, UnaryOps};
 
 #[derive(Debug)]
 pub enum Assignment<'a> {
@@ -24,7 +24,7 @@ pub enum Assignment<'a> {
     },
 }
 
-impl ASTNode for Assignment<'_> {}
+impl Visitable for Assignment<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn assignment(&mut self) -> Result<Assignment<'a>, Error<'a>> {
@@ -48,14 +48,21 @@ impl<'a> Parser<'a> {
             }
             Expression::Unary {
                 expression: address,
-                ..
-            } => {
-                let expression = self.expression()?;
-                Assignment::PtrAssignment {
-                    address: address,
-                    value: expression,
+                operation,
+            } => match operation {
+                UnaryOps::DEREF => {
+                    let expression = self.expression()?;
+                    Assignment::PtrAssignment {
+                        address: address,
+                        value: expression,
+                    }
                 }
-            }
+                _ => {
+                    return Err(Error::UnableToAssign {
+                        location: self.current().1,
+                    })
+                }
+            },
             Expression::FieldAccess { name, operand } => {
                 let expression = self.expression()?;
                 Assignment::FieldAssignment {

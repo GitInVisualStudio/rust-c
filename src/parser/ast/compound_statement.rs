@@ -1,15 +1,15 @@
 use derive_getters::Getters;
 
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{statement::Statement, ASTNode};
+use super::statement::Statement;
 
-#[derive(Debug, Getters)]
+#[derive(Debug)]
 pub struct Compound<'a> {
-    statements: Vec<Statement<'a>>,
+    pub(crate) statements: Vec<Statement<'a>>,
 }
 
-impl ASTNode for Compound<'_> {}
+impl Visitable for Compound<'_> {}
 
 impl<'a> Parser<'a> {
     pub fn compound_statement(&mut self) -> Result<Compound<'a>, Error<'a>> {

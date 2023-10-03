@@ -1,9 +1,5 @@
-struct Test {
-    int a;
-    int b;
-    struct Test* f;
-};
+typedef int u8;
 
-void main() {
-    return;
+void test(int a) {
+    return test(5);
 }

@@ -1,27 +1,30 @@
-use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser};
+use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Visitable};
 
-use super::{expression::Expression, ASTNode};
+use super::expression::Expression;
 
 #[derive(Debug)]
 pub enum TypeExpression<'a> {
     Primitive(TokenKind),
     Typeof(&'a Expression<'a>),
-    Unresolved(&'a str),
+    Named(&'a str),
     Struct {
         name: &'a str,
         fields: Vec<(&'a str, TypeExpression<'a>)>,
     },
-    UnresolvedStruct(&'a str),
+    NamedStruct(&'a str),
     Pointer(&'a TypeExpression<'a>),
 }
 
-impl ASTNode for TypeExpression<'_> {}
+impl<'a> Visitable for TypeExpression<'a> {}
 
 impl<'a> Parser<'a> {
     pub fn type_expression(&mut self) -> Result<TypeExpression<'a>, Error<'a>> {
         let mut type_expression = match self.next() {
             (TokenKind::STRUCT, _) => {
                 let name = self.expect(TokenKind::IDENT)?.string();
+                // the final name should be: struct 'name'
+                let final_name = self.bump.alloc(String::from("struct "));
+                final_name.push_str(name);
                 match self.peek() {
                     TokenKind::LCURL => {
                         self.expect(TokenKind::LCURL)?;
@@ -35,15 +38,14 @@ impl<'a> Parser<'a> {
                         self.next();
 
                         TypeExpression::Struct {
-                            name: name,
+                            name: final_name,
                             fields: fields,
                         }
                     }
-                    TokenKind::IDENT => TypeExpression::UnresolvedStruct(name),
-                    _ => TypeExpression::UnresolvedStruct(name),
+                    _ => TypeExpression::NamedStruct(final_name),
                 }
             }
-            (TokenKind::IDENT, location) => TypeExpression::Unresolved(location.src),
+            (TokenKind::IDENT, location) => TypeExpression::Named(location.src),
             (TokenKind::TYPEOF, _) => {
                 self.expect(TokenKind::LPAREN)?;
                 let expression: Expression = self.expression()?;
