@@ -71,6 +71,14 @@ impl<'a> Parser<'a> {
                     value: expression,
                 }
             }
+            Expression::ArrowAccess { name, operand } => {
+                let expression = self.expression()?;
+                Assignment::FieldAssignment {
+                    name: name,
+                    address: operand,
+                    value: expression,
+                }
+            }
             _ => {
                 return Err(Error::UnableToAssign {
                     location: self.current().1,

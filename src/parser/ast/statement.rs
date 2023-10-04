@@ -3,7 +3,7 @@ use crate::{error::Error, lexer::tokens::TokenKind, parser::Parser, visitor::Vis
 use super::{
     compound_statement::Compound, expression::Expression, for_statement::ForStatement,
     if_statement::IfStatement, type_definition::TypeDefinition, while_statement::WhileStatement,
-    TypeExpression,
+    Assignment, TypeExpression,
 };
 
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub enum Statement<'a> {
     VariableDeclaration {
         name: &'a str,
         expression: &'a TypeExpression<'a>,
-        assignment: Option<&'a Expression<'a>>,
+        assignment: Option<&'a Assignment<'a>>,
     },
     Conitnue,
     Break,
@@ -75,7 +75,11 @@ impl<'a> Parser<'a> {
                         let mut assignment = None;
                         if self.peek() == TokenKind::ASSIGN {
                             self.next();
-                            assignment = Some(self.expression()?);
+                            let result = Assignment::VariableAssignment {
+                                name: name.string(),
+                                expression: self.expression()?,
+                            };
+                            assignment = Some(&*self.alloc(result));
                         }
                         Statement::VariableDeclaration {
                             name: name.string(),

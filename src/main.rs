@@ -14,6 +14,8 @@ use parser::Parser;
 use scope_builder::ScopeBuilder;
 use visitor::Visitable;
 
+use crate::generator::Generator;
+
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().into_iter().collect();
     if args.len() < 3 {
@@ -33,7 +35,11 @@ fn main() -> ExitCode {
         Ok(program) => {
             let finished = program.accept(&mut scope_builder);
             match finished {
-                Ok(program) => println!("{:#?}\neverything passed!", program),
+                Ok(program) => {
+                    println!("program parsed sucessfully!");
+                    let mut gen = Generator::new(output).expect("not able to open output file!");
+                    let result = gen.generate(program);
+                },
                 Err(e) => println!("Error building scope: {:#?}", e),
             }
         }

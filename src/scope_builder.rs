@@ -147,8 +147,8 @@ impl<'a> ScopeBuilder<'a> {
     }
 
     pub fn push_variable(&mut self, name: &'a str, type_: DataType<'a>) -> usize {
-        let var = Variable::new(self.stack_offset, type_);
         self.stack_offset += type_.size();
+        let var = Variable::new(self.stack_offset, type_);
         self.scope.push_variable(name, var);
         var.stack_offset
     }
@@ -310,9 +310,9 @@ impl<'a> Visitor<&Statement<'a>, Result<&'a ResolvedStatement<'a>, Error<'a>>>
             Statement::Conitnue => {
                 let label_index = self.loop_label_index.pop();
                 if label_index.is_none() {
-                    return Err(Error::ContinueNotInLoop {  });
+                    return Err(Error::ContinueNotInLoop {});
                 }
-                ResolvedStatement::Conitnue(label_index.unwrap())
+                ResolvedStatement::Continue(label_index.unwrap())
             }
             Statement::Break => {
                 let label_index = self.loop_label_index.pop();
@@ -385,6 +385,7 @@ impl<'a> Visitor<&ForStatement<'a>, Result<&'a ResolvedForStatement<'a>, Error<'
             condition,
             post,
             body,
+            label_index,
         }))
     }
 }
@@ -521,9 +522,32 @@ impl<'a> Visitor<&Expression<'a>, Result<&'a ResolvedExpression<'a>, Error<'a>>>
             Expression::FieldAccess { name, operand } => {
                 let resolved_operand = operand.accept(self)?;
                 match resolved_operand.data_type() {
-                    DataType::PTR(type_) => match type_ {
+                    DataType::Struct(x) => match x.field(name) {
+                        Some((offset, type_)) => ResolvedExpression::FieldAccess {
+                            field_offset: offset,
+                            data_type: type_,
+                            operand: resolved_operand,
+                        },
+                        None => {
+                            return Err(Error::UnknownField {
+                                expression: operand,
+                                name: name,
+                            })
+                        }
+                    },
+                    _ => {
+                        return Err(Error::AccessNonStruct {
+                            expression: operand,
+                        })
+                    }
+                }
+            }
+            Expression::ArrowAccess { name, operand } => {
+                let resolved_operand = operand.accept(self)?;
+                match resolved_operand.data_type() {
+                    DataType::PTR(base) => match base {
                         DataType::Struct(x) => match x.field(name) {
-                            Some((offset, type_)) => ResolvedExpression::FieldAccess {
+                            Some((offset, type_)) => ResolvedExpression::ArrowAccess {
                                 field_offset: offset,
                                 data_type: type_,
                                 operand: resolved_operand,
@@ -542,29 +566,6 @@ impl<'a> Visitor<&Expression<'a>, Result<&'a ResolvedExpression<'a>, Error<'a>>>
                         }
                     },
                     _ => return Err(Error::DerefOfNonPointer { expr: operand }),
-                }
-            }
-            Expression::ArrowAccess { name, operand } => {
-                let resolved_operand = operand.accept(self)?;
-                match resolved_operand.data_type() {
-                    DataType::Struct(x) => match x.field(name) {
-                        Some((offset, type_)) => ResolvedExpression::ArrowAccess {
-                            field_offset: offset,
-                            data_type: type_,
-                            operand: resolved_operand,
-                        },
-                        None => {
-                            return Err(Error::UnknownField {
-                                expression: operand,
-                                name: name,
-                            })
-                        }
-                    },
-                    _ => {
-                        return Err(Error::AccessNonStruct {
-                            expression: operand,
-                        })
-                    }
                 }
             }
             Expression::Indexing { operand, index } => {
@@ -756,6 +757,35 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
                             return Err(Error::UnknownField {
                                 expression: address,
                                 name: name,
+                            })
+                        }
+                    },
+                    DataType::PTR(x) => match x {
+                        DataType::Struct(x) => match x.field(name) {
+                            Some((field_offset, field_type)) => {
+                                if field_type != resolved_value.data_type() {
+                                    return Err(Error::CannotAssign {
+                                        from: value,
+                                        to: address,
+                                    });
+                                }
+                                ResolvedAssignment::FieldAssignment {
+                                    field_offset: field_offset,
+                                    value: resolved_value,
+                                    address: resolved_address,
+                                    data_type: field_type,
+                                }
+                            }
+                            None => {
+                                return Err(Error::UnknownField {
+                                    expression: address,
+                                    name: name,
+                                })
+                            }
+                        },
+                        _ => {
+                            return Err(Error::AccessNonStruct {
+                                expression: &address,
                             })
                         }
                     },
