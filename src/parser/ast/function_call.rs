@@ -5,18 +5,18 @@ use super::expression::Expression;
 #[derive(Debug)]
 pub struct FunctionCall<'a> {
     pub(crate) name: &'a str,
-    pub(crate) parameter: Vec<Expression<'a>>,
+    pub(crate) parameter: Vec<&'a Expression<'a>>,
 }
 
 impl Visitable for FunctionCall<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn function_call(&mut self) -> Result<FunctionCall<'a>, Error<'a>> {
+    pub fn function_call(&mut self) -> Result<&'a FunctionCall<'a>, Error<'a>> {
         let name = self.last_token().1.string();
 
-        let mut parameter: Vec<Expression> = Vec::new();
         self.expect(TokenKind::LPAREN)?;
 
+        let mut parameter = Vec::new();
         while self.peek() != TokenKind::RPAREN {
             parameter.push(self.expression()?);
             if self.peek() == TokenKind::COMMA {
@@ -25,9 +25,9 @@ impl<'a> Parser<'a> {
         }
         self.next();
 
-        Ok(FunctionCall {
+        Ok(self.alloc(FunctionCall {
             name: name,
             parameter: parameter,
-        })
+        }))
     }
 }

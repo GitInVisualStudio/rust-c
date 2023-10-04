@@ -1,6 +1,7 @@
 use crate::{
     lexer::{tokens::TokenKind, SrcLocation},
-    parser::ast::{ArrayExpression, Expression, Function}, scope_builder::ast::DataType,
+    parser::ast::Expression,
+    scope_builder::ast::DataType,
 };
 
 #[derive(Debug, Clone)]
@@ -21,11 +22,11 @@ pub enum Error<'a> {
     },
     StructFieldRedefinition {
         struct_name: &'a str,
-        field_name: &'a str
+        field_name: &'a str,
     },
     StructFieldUnkownSize {
         struct_name: &'a str,
-        field_name: &'a str
+        field_name: &'a str,
     },
     OperandsDifferentDatatypes {
         lhs: &'a Expression<'a>,
@@ -62,7 +63,7 @@ pub enum Error<'a> {
     },
     ReturnTypeIncorrect {
         expected: DataType<'a>,
-        found: DataType<'a>
+        found: DataType<'a>,
     },
     ReturnWithoutFunction {},
     VariableRedefinition {
@@ -71,24 +72,24 @@ pub enum Error<'a> {
     VariableInitWrong {
         expected: DataType<'a>,
         found: DataType<'a>,
-        name: &'a str
+        name: &'a str,
     },
     VariableDeclarationOutsideOfFunction {
-        name: &'a str
+        name: &'a str,
     },
     VariableOfUnkownSize {
         name: &'a str,
-        data_type: DataType<'a>
+        data_type: DataType<'a>,
     },
     ParameterCountMismatch {
         function: &'a str,
         expected: usize,
-        found: usize
+        found: usize,
     },
     ParamterTypeMismatch {
         function: &'a str,
         expected: DataType<'a>,
         found: DataType<'a>,
-        parameter_name: &'a str
-    }
+        parameter_name: &'a str,
+    },
 }

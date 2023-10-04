@@ -4,15 +4,19 @@ use super::expression::Expression;
 
 #[derive(Debug)]
 pub enum ArrayExpression<'a> {
-    StackArray { expressions: Vec<Expression<'a>> },
-    StringLiteral { string: &'a str },
+    StackArray {
+        expressions: Vec<&'a Expression<'a>>,
+    },
+    StringLiteral {
+        string: &'a str,
+    },
 }
 
 impl Visitable for ArrayExpression<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn array_expression(&mut self) -> Result<ArrayExpression<'a>, Error<'a>> {
-        Ok(match self.peek() {
+    pub fn array_expression(&mut self) -> Result<&'a ArrayExpression<'a>, Error<'a>> {
+        Ok(self.bump.alloc(match self.peek() {
             TokenKind::STRINGLIT => {
                 let string = self.expect(TokenKind::STRINGLIT)?.string();
                 ArrayExpression::StringLiteral { string }
@@ -27,10 +31,8 @@ impl<'a> Parser<'a> {
                     }
                 }
                 self.next();
-                ArrayExpression::StackArray {
-                    expressions,
-                }
+                ArrayExpression::StackArray { expressions }
             }
-        })
+        }))
     }
 }

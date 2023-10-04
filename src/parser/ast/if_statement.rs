@@ -5,21 +5,21 @@ use super::{compound_statement::Compound, expression::Expression};
 #[derive(Debug)]
 pub enum ElsePart<'a> {
     IfStatement(&'a IfStatement<'a>),
-    Compound(Compound<'a>),
+    Compound(&'a Compound<'a>),
     None,
 }
 
 #[derive(Debug)]
 pub struct IfStatement<'a> {
-    pub(crate) statements: Compound<'a>,
-    pub(crate) condition: Expression<'a>,
+    pub(crate) statements: &'a Compound<'a>,
+    pub(crate) condition: &'a Expression<'a>,
     pub(crate) else_part: ElsePart<'a>,
 }
 
 impl Visitable for IfStatement<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn if_statement(&mut self) -> Result<IfStatement<'a>, Error<'a>> {
+    pub fn if_statement(&mut self) -> Result<&'a IfStatement<'a>, Error<'a>> {
         self.expect(TokenKind::IF)?;
         self.expect(TokenKind::LPAREN)?;
         let condition = self.expression()?;
@@ -33,10 +33,10 @@ impl<'a> Parser<'a> {
                 _ => ElsePart::Compound(self.compound_statement()?),
             };
         }
-        Ok(IfStatement {
+        Ok(self.alloc(IfStatement {
             statements: statements,
             condition: condition,
             else_part: else_part,
-        })
+        }))
     }
 }

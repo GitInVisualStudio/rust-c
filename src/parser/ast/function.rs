@@ -5,15 +5,15 @@ use super::{compound_statement::Compound, type_expression::TypeExpression};
 #[derive(Debug)]
 pub struct Function<'a> {
     pub(crate) name: &'a str,
-    pub(crate) statements: Option<Compound<'a>>,
-    pub(crate) parameter: Vec<(TypeExpression<'a>, &'a str)>,
-    pub(crate) return_type: TypeExpression<'a>,
+    pub(crate) statements: Option<&'a Compound<'a>>,
+    pub(crate) parameter: Vec<(&'a TypeExpression<'a>, &'a str)>,
+    pub(crate) return_type: &'a TypeExpression<'a>,
 }
 
 impl Visitable for Function<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn function(&mut self) -> Result<Function<'a>, Error<'a>> {
+    pub fn function(&mut self) -> Result<&'a Function<'a>, Error<'a>> {
         let return_type = self.type_expression()?;
         let name = self.expect(TokenKind::IDENT)?.string();
 
@@ -34,21 +34,21 @@ impl<'a> Parser<'a> {
 
         if self.peek() == TokenKind::SEMIC {
             self.next();
-            return Ok(Function {
+            return Ok(self.alloc(Function {
                 statements: None,
                 name,
                 parameter,
                 return_type,
-            });
+            }));
         }
 
         let statements = self.compound_statement()?;
 
-        Ok(Function {
+        Ok(self.alloc(Function {
             statements: Some(statements),
             name,
             parameter,
             return_type,
-        })
+        }))
     }
 }

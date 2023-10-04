@@ -6,20 +6,20 @@ use super::{expression::Expression, UnaryOps};
 pub enum Assignment<'a> {
     VariableAssignment {
         name: &'a str,
-        expression: Expression<'a>,
+        expression: &'a Expression<'a>,
     },
     PtrAssignment {
-        value: Expression<'a>,
+        value: &'a Expression<'a>,
         address: &'a Expression<'a>,
     },
     ArrayAssignment {
         index: &'a Expression<'a>,
-        value: Expression<'a>,
+        value: &'a Expression<'a>,
         address: &'a Expression<'a>,
     },
     FieldAssignment {
         name: &'a str,
-        value: Expression<'a>,
+        value: &'a Expression<'a>,
         address: &'a Expression<'a>,
     },
 }
@@ -27,10 +27,10 @@ pub enum Assignment<'a> {
 impl Visitable for Assignment<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn assignment(&mut self) -> Result<Assignment<'a>, Error<'a>> {
+    pub fn assignment(&mut self) -> Result<&'a Assignment<'a>, Error<'a>> {
         self.expect(TokenKind::ASSIGN)?;
         let expr = self.assignee.unwrap();
-        Ok(match expr {
+        Ok(self.bump.alloc(match expr {
             Expression::NamedVariable { name } => {
                 let expression = self.expression()?;
                 Assignment::VariableAssignment {
@@ -76,6 +76,6 @@ impl<'a> Parser<'a> {
                     location: self.current().1,
                 })
             }
-        })
+        }))
     }
 }

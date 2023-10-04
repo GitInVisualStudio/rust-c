@@ -26,6 +26,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn alloc<T>(&self, t: T) -> &'a mut T {
+        self.bump.alloc(t)
+    }
+
     pub fn next_kind(&mut self) -> TokenKind {
         self.next().0
     }

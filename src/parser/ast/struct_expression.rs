@@ -4,13 +4,13 @@ use super::expression::Expression;
 
 #[derive(Debug)]
 pub struct StructExpression<'a> {
-    pub(crate) fields: Vec<(&'a str, Expression<'a>)>,
+    pub(crate) fields: Vec<(&'a str, &'a Expression<'a>)>,
 }
 
 impl Visitable for StructExpression<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn struct_expression(&mut self) -> Result<StructExpression<'a>, Error<'a>> {
+    pub fn struct_expression(&mut self) -> Result<&'a StructExpression<'a>, Error<'a>> {
         let mut fields = Vec::new();
         while self.peek() != TokenKind::RCURL {
             self.expect(TokenKind::DOT)?;
@@ -24,6 +24,6 @@ impl<'a> Parser<'a> {
         }
 
         self.expect(TokenKind::RCURL)?;
-        return Ok(StructExpression { fields });
+        return Ok(self.alloc(StructExpression { fields }));
     }
 }

@@ -104,6 +104,10 @@ impl<'a> ScopeBuilder<'a> {
         }
     }
 
+    pub fn alloc<T>(&self, t: T) -> &'a mut T {
+        self.bump.alloc(t)
+    }
+
     pub fn push(&mut self) {
         self.scope.push()
     }
@@ -322,7 +326,7 @@ impl<'a> Visitor<&TypeExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scope
                         resolved_fields.push((*name, type_expr.accept(self)?))
                     }
                     let struct_ = Struct::new(resolved_fields);
-                    let struct_ = self.bump.alloc(struct_);
+                    let struct_ = self.alloc(struct_);
                     DataType::Struct(struct_)
                 }
                 Some(_) => return Err(Error::StructRedefinition { name: name }),
@@ -347,7 +351,7 @@ impl<'a> Visitor<&TypeExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scope
                         resolved_fields.push((*field_name, type_))
                     }
                     let struct_ = Struct::new(resolved_fields);
-                    let struct_ = self.bump.alloc(struct_);
+                    let struct_ = self.alloc(struct_);
                     let type_ = DataType::Struct(struct_);
                     self.push_type(name, type_);
                     DataType::Struct(struct_)
@@ -362,7 +366,7 @@ impl<'a> Visitor<&TypeExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scope
             },
             TypeExpression::Pointer(expr) => {
                 let resolved = expr.accept(self)?;
-                let base = self.bump.alloc(resolved);
+                let base = self.alloc(resolved);
                 DataType::PTR(base)
             }
         };
@@ -439,7 +443,7 @@ impl<'a> Visitor<&Expression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuil
             } => match operation {
                 UnaryOps::REF => {
                     let base = expression.accept(self)?;
-                    DataType::PTR(self.bump.alloc(base))
+                    DataType::PTR(self.alloc(base))
                 }
                 UnaryOps::DEREF => {
                     let base = expression.accept(self)?;
@@ -562,7 +566,7 @@ impl<'a> Visitor<&StructExpression<'a>, Result<DataType<'a>, Error<'a>>> for Sco
             resolved_fields.push((*name, type_.accept(self)?));
         }
         let struct_ = Struct::new(resolved_fields);
-        Ok(DataType::Struct(self.bump.alloc(struct_)))
+        Ok(DataType::Struct(self.alloc(struct_)))
     }
 }
 
@@ -579,9 +583,9 @@ impl<'a> Visitor<&ArrayExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scop
                         return Err(Error::ArrayOfDifferentTypes {});
                     }
                 }
-                DataType::PTR(self.bump.alloc(base_type))
+                DataType::PTR(self.alloc(base_type))
             }
-            ArrayExpression::StringLiteral { .. } => DataType::PTR(self.bump.alloc(DataType::CHAR)),
+            ArrayExpression::StringLiteral { .. } => DataType::PTR(self.alloc(DataType::CHAR)),
         })
     }
 }

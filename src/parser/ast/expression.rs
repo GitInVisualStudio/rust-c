@@ -36,9 +36,9 @@ pub enum UnaryOps<'a> {
 pub enum Expression<'a> {
     IntLiteral(i32),
     CharLiteral(u8),
-    FunctionCall(FunctionCall<'a>),
-    ArrayExpression(ArrayExpression<'a>),
-    StructExpresion(StructExpression<'a>),
+    FunctionCall(&'a FunctionCall<'a>),
+    ArrayExpression(&'a ArrayExpression<'a>),
+    StructExpresion(&'a StructExpression<'a>),
     Assignment(&'a Assignment<'a>),
     TypeExpression(&'a TypeExpression<'a>),
     SizeOf(&'a Expression<'a>),
@@ -71,8 +71,8 @@ pub enum Expression<'a> {
 impl<'a> Visitable for Expression<'a> {}
 
 impl<'a> Parser<'a> {
-    pub fn expression(&mut self) -> Result<Expression<'a>, Error<'a>> {
-        Expression::parse_expressions(self)
+    pub fn expression(&mut self) -> Result<&'a Expression<'a>, Error<'a>> {
+        Ok(self.bump.alloc(Expression::parse_expressions(self)?))
     }
 }
 

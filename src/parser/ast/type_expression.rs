@@ -9,7 +9,7 @@ pub enum TypeExpression<'a> {
     Named(&'a str),
     Struct {
         name: &'a str,
-        fields: Vec<(&'a str, TypeExpression<'a>)>,
+        fields: Vec<(&'a str, &'a TypeExpression<'a>)>,
     },
     NamedStruct(&'a str),
     Pointer(&'a TypeExpression<'a>),
@@ -18,12 +18,12 @@ pub enum TypeExpression<'a> {
 impl<'a> Visitable for TypeExpression<'a> {}
 
 impl<'a> Parser<'a> {
-    pub fn type_expression(&mut self) -> Result<TypeExpression<'a>, Error<'a>> {
+    pub fn type_expression(&mut self) -> Result<&'a TypeExpression<'a>, Error<'a>> {
         let mut type_expression = match self.next() {
             (TokenKind::STRUCT, _) => {
                 let name = self.expect(TokenKind::IDENT)?.string();
                 // the final name should be: struct 'name'
-                let final_name = self.bump.alloc(String::from("struct "));
+                let final_name = self.alloc(String::from("struct "));
                 final_name.push_str(name);
                 match self.peek() {
                     TokenKind::LCURL => {
@@ -48,18 +48,18 @@ impl<'a> Parser<'a> {
             (TokenKind::IDENT, location) => TypeExpression::Named(location.src),
             (TokenKind::TYPEOF, _) => {
                 self.expect(TokenKind::LPAREN)?;
-                let expression: Expression = self.expression()?;
+                let expression = self.expression()?;
                 self.expect(TokenKind::RPAREN)?;
-                TypeExpression::Typeof(self.bump.alloc(expression))
+                TypeExpression::Typeof(self.alloc(expression))
             }
             (x, _) => TypeExpression::Primitive(x),
         };
 
         while self.peek() == TokenKind::MUL {
             self.next();
-            let allocation = &*self.bump.alloc(type_expression);
+            let allocation = &*self.alloc(type_expression);
             type_expression = TypeExpression::Pointer(allocation);
         }
-        Ok(type_expression)
+        Ok(self.alloc(type_expression))
     }
 }

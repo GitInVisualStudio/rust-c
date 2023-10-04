@@ -8,17 +8,17 @@ use super::{
 
 #[derive(Debug)]
 pub enum Statement<'a> {
-    Return(Option<Expression<'a>>),
-    SingleExpression(Expression<'a>),
-    Compound(Compound<'a>),
-    IfStatement(IfStatement<'a>),
-    ForStatement(ForStatement<'a>),
-    WhileStatement(WhileStatement<'a>),
-    TypeDefinition(TypeDefinition<'a>),
+    Return(Option<&'a Expression<'a>>),
+    SingleExpression(&'a Expression<'a>),
+    Compound(&'a Compound<'a>),
+    IfStatement(&'a IfStatement<'a>),
+    ForStatement(&'a ForStatement<'a>),
+    WhileStatement(&'a WhileStatement<'a>),
+    TypeDefinition(&'a TypeDefinition<'a>),
     VariableDeclaration {
         name: &'a str,
-        expression: TypeExpression<'a>,
-        assignment: Option<Expression<'a>>,
+        expression: &'a TypeExpression<'a>,
+        assignment: Option<&'a Expression<'a>>,
     },
     Conitnue,
     Break,
@@ -28,36 +28,36 @@ pub enum Statement<'a> {
 impl Visitable for Statement<'_> {}
 
 impl<'a> Parser<'a> {
-    pub fn statement(&mut self) -> Result<Statement<'a>, Error<'a>> {
+    pub fn statement(&mut self) -> Result<&'a Statement<'a>, Error<'a>> {
         let result = match self.peek() {
             TokenKind::CONTINUE => {
                 self.next();
-                Ok(Statement::Conitnue)
+                Statement::Conitnue
             }
             TokenKind::BREAK => {
                 self.next();
-                Ok(Statement::Break)
+                Statement::Break
             }
             TokenKind::RETURN => {
                 self.expect(TokenKind::RETURN)?;
                 if self.peek() == TokenKind::SEMIC {
                     self.expect(TokenKind::SEMIC)?;
-                    return Ok(Statement::Return(None));
+                    return Ok(self.alloc(Statement::Return(None)));
                 }
                 let expression = self.expression()?;
-                Ok(Statement::Return(Some(expression)))
+                Statement::Return(Some(expression))
             }
             TokenKind::IF => {
                 let statement = self.if_statement()?;
-                return Ok(Statement::IfStatement(statement));
+                return Ok(self.alloc(Statement::IfStatement(statement)));
             }
             TokenKind::FOR => {
                 let statement = self.for_statement()?;
-                return Ok(Statement::ForStatement(statement));
+                return Ok(self.alloc(Statement::ForStatement(statement)));
             }
             TokenKind::WHILE => {
                 let statement = self.while_statement()?;
-                return Ok(Statement::WhileStatement(statement));
+                return Ok(self.alloc(Statement::WhileStatement(statement)));
             }
             TokenKind::INT
             | TokenKind::CHAR
@@ -77,33 +77,33 @@ impl<'a> Parser<'a> {
                             self.next();
                             assignment = Some(self.expression()?);
                         }
-                        Ok(Statement::VariableDeclaration {
+                        Statement::VariableDeclaration {
                             name: name.string(),
                             expression,
                             assignment,
-                        })
+                        }
                     }
                     Err(_) => {
                         self.reset(anchor);
-                        Ok(Statement::SingleExpression(self.expression()?))
+                        Statement::SingleExpression(self.expression()?)
                     }
                 }
             }
             TokenKind::TYPEDEF => {
                 let def = self.type_def()?;
-                Ok(Statement::TypeDefinition(def))
+                Statement::TypeDefinition(def)
             }
-            TokenKind::SEMIC => Ok(Statement::Empty),
+            TokenKind::SEMIC => Statement::Empty,
             TokenKind::LCURL => {
                 let list = self.compound_statement()?;
-                return Ok(Statement::Compound(list));
+                return Ok(self.alloc(Statement::Compound(list)));
             }
             _ => {
                 let expr = self.expression()?;
-                Ok(Statement::SingleExpression(expr))
+                Statement::SingleExpression(expr)
             }
-        }?;
+        };
         self.expect(TokenKind::SEMIC)?;
-        Ok(result)
+        Ok(self.alloc(result))
     }
 }
