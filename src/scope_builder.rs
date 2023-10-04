@@ -105,7 +105,9 @@ pub struct ScopeBuilder<'a> {
     bump: &'a Bump,
     scope: Scope<'a>,
     current_function: Option<DataType<'a>>,
+    loop_label_index: Vec<i32>,
     stack_offset: usize,
+    label_index: i32,
 }
 
 impl<'a> ScopeBuilder<'a> {
@@ -114,7 +116,9 @@ impl<'a> ScopeBuilder<'a> {
             bump: bump,
             scope: Scope::new(),
             current_function: None,
+            loop_label_index: Vec::new(),
             stack_offset: 0,
+            label_index: 0,
         }
     }
 
@@ -156,7 +160,13 @@ impl<'a> ScopeBuilder<'a> {
     pub fn push_function(&mut self, name: &'a str, func: &'a Function<'a>) {
         self.scope.push_function(name, func)
     }
+
+    pub fn next_label_index(&mut self) -> i32 {
+        self.label_index += 1;
+        self.label_index
+    }
 }
+
 impl<'a> Visitor<&Program<'a>, Result<&'a ResolvedProgram<'a>, Error<'a>>> for ScopeBuilder<'a> {
     fn visit(&mut self, visitor: &Program<'a>) -> Result<&'a ResolvedProgram<'a>, Error<'a>> {
         let mut functions = Vec::new();
@@ -297,8 +307,20 @@ impl<'a> Visitor<&Statement<'a>, Result<&'a ResolvedStatement<'a>, Error<'a>>>
                     }
                 }
             },
-            Statement::Conitnue => ResolvedStatement::Conitnue,
-            Statement::Break => ResolvedStatement::Break,
+            Statement::Conitnue => {
+                let label_index = self.loop_label_index.pop();
+                if label_index.is_none() {
+                    return Err(Error::ContinueNotInLoop {  });
+                }
+                ResolvedStatement::Conitnue(label_index.unwrap())
+            }
+            Statement::Break => {
+                let label_index = self.loop_label_index.pop();
+                if label_index.is_none() {
+                    return Err(Error::BreakNotInLoop {});
+                }
+                ResolvedStatement::Break(label_index.unwrap())
+            }
             Statement::Empty => ResolvedStatement::Empty,
         }))
     }
@@ -319,9 +341,19 @@ impl<'a> Visitor<&WhileStatement<'a>, Result<&'a ResolvedWhileStatement<'a>, Err
         &mut self,
         visitor: &WhileStatement<'a>,
     ) -> Result<&'a ResolvedWhileStatement<'a>, Error<'a>> {
+        let label_index = self.next_label_index();
+        self.loop_label_index.push(label_index);
+
         let condition = visitor.condition.accept(self)?;
         let body = visitor.body.accept(self)?;
-        Ok(self.alloc(ResolvedWhileStatement { condition, body }))
+
+        self.loop_label_index.pop();
+
+        Ok(self.alloc(ResolvedWhileStatement {
+            condition,
+            body,
+            label_index,
+        }))
     }
 }
 
@@ -333,6 +365,10 @@ impl<'a> Visitor<&ForStatement<'a>, Result<&'a ResolvedForStatement<'a>, Error<'
         visitor: &ForStatement<'a>,
     ) -> Result<&'a ResolvedForStatement<'a>, Error<'a>> {
         self.push();
+
+        let label_index = self.next_label_index();
+        self.loop_label_index.push(label_index);
+
         let init = visitor.init.accept(self)?;
         let condition = visitor.condition.accept(self)?;
         let post;
@@ -341,6 +377,8 @@ impl<'a> Visitor<&ForStatement<'a>, Result<&'a ResolvedForStatement<'a>, Error<'
             None => post = None,
         };
         let body = visitor.body.accept(self)?;
+
+        self.loop_label_index.pop();
         self.pop();
         Ok(self.alloc(ResolvedForStatement {
             init,

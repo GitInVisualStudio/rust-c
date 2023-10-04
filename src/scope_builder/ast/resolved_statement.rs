@@ -19,8 +19,8 @@ pub enum ResolvedStatement<'a> {
         assignment: Option<&'a ResolvedExpression<'a>>,
     },
     //TODO: have to select the right label index
-    Conitnue,
-    Break,
+    Conitnue(i32),
+    Break(i32),
     Empty,
 }
 

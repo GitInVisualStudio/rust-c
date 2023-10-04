@@ -95,5 +95,9 @@ pub enum Error<'a> {
     UnaryOperandNotNumber {
         expression: &'a Expression<'a>,
         operation: UnaryOps<'a>
+    },
+    BreakNotInLoop {
+    },
+    ContinueNotInLoop {
     }
 }

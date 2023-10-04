@@ -34,7 +34,7 @@ fn main() -> ExitCode {
             let finished = program.accept(&mut scope_builder);
             match finished {
                 Ok(program) => println!("{:#?}\neverything passed!", program),
-                Err(e) => println!("Error building scope: {:#?}\n\n{:#?}", e, program),
+                Err(e) => println!("Error building scope: {:#?}", e),
             }
         }
         Err(e) => println!("Error while parsing: {:#?}", e),
