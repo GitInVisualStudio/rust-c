@@ -5,7 +5,7 @@ use super::{
     struct_expression::StructExpression, type_expression::TypeExpression,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinaryOps {
     ADD,
     SUB,
@@ -22,7 +22,7 @@ pub enum BinaryOps {
     GE,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum UnaryOps<'a> {
     NEG,
     LOGNEG,

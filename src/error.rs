@@ -1,6 +1,6 @@
 use crate::{
     lexer::{tokens::TokenKind, SrcLocation},
-    parser::ast::Expression,
+    parser::ast::{Expression, UnaryOps},
     scope_builder::ast::DataType,
 };
 
@@ -92,4 +92,8 @@ pub enum Error<'a> {
         found: DataType<'a>,
         parameter_name: &'a str,
     },
+    UnaryOperandNotNumber {
+        expression: &'a Expression<'a>,
+        operation: UnaryOps<'a>
+    }
 }

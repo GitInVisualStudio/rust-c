@@ -1,5 +1,3 @@
-use derive_getters::Getters;
-
 use crate::error::Error;
 use crate::lexer::tokens::TokenKind;
 use crate::parser::Parser;
@@ -14,7 +12,7 @@ pub enum Decalrations<'a> {
     Function(&'a Function<'a>),
 }
 
-#[derive(Debug, Getters)]
+#[derive(Debug)]
 pub struct Program<'a> {
     pub(crate) declarations: Vec<Decalrations<'a>>,
 }

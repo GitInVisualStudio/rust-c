@@ -2,8 +2,8 @@ use super::DataType;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Variable<'a> {
-    stack_offset: usize,
-    data_type: DataType<'a>,
+    pub(crate) stack_offset: usize,
+    pub(crate) data_type: DataType<'a>,
 }
 
 impl<'a> Variable<'a> {
@@ -12,9 +12,5 @@ impl<'a> Variable<'a> {
             stack_offset,
             data_type,
         }
-    }
-
-    pub fn data_type(&self) -> DataType<'a> {
-        self.data_type
     }
 }

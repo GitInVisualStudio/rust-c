@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use bumpalo::Bump;
 
@@ -14,7 +14,21 @@ use crate::{
     visitor::{Visitable, Visitor},
 };
 
-use self::ast::{DataType, Variable};
+use self::ast::{
+    resolved_array_expression::ResolvedArrayExpression,
+    resolved_assignment::ResolvedAssignment,
+    resolved_compound::ResolvedCompound,
+    resolved_expression::ResolvedExpression,
+    resolved_for::ResolvedForStatement,
+    resolved_function::ResolvedFunction,
+    resolved_function_call::ResolvedFunctionCall,
+    resolved_if::{ResolvedElsePart, ResolvedIfStatement},
+    resolved_program::ResolvedProgram,
+    resolved_statement::ResolvedStatement,
+    resolved_struct_expression::ResolvedStructExpression,
+    resolved_while::ResolvedWhileStatement,
+    DataType, Variable,
+};
 pub mod ast;
 
 pub struct Scope<'a> {
@@ -128,10 +142,11 @@ impl<'a> ScopeBuilder<'a> {
         self.scope.get_variable(name)
     }
 
-    pub fn push_variable(&mut self, name: &'a str, type_: DataType<'a>) {
+    pub fn push_variable(&mut self, name: &'a str, type_: DataType<'a>) -> usize {
         let var = Variable::new(self.stack_offset, type_);
         self.stack_offset += type_.size();
-        self.scope.push_variable(name, var)
+        self.scope.push_variable(name, var);
+        var.stack_offset
     }
 
     pub fn get_function(&self, name: &'a str) -> Option<&'a Function<'a>> {
@@ -142,86 +157,112 @@ impl<'a> ScopeBuilder<'a> {
         self.scope.push_function(name, func)
     }
 }
-impl<'a> Visitor<&Program<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &Program<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&Program<'a>, Result<&'a ResolvedProgram<'a>, Error<'a>>> for ScopeBuilder<'a> {
+    fn visit(&mut self, visitor: &Program<'a>) -> Result<&'a ResolvedProgram<'a>, Error<'a>> {
+        let mut functions = Vec::new();
         for declaration in &visitor.declarations {
             match declaration {
-                Decalrations::Statement(s) => s.accept(self)?,
-                Decalrations::Function(f) => f.accept(self)?,
+                Decalrations::Statement(s) => {
+                    s.accept(self)?;
+                }
+                Decalrations::Function(f) => functions.push(f.accept(self)?),
             };
         }
-        Ok(DataType::VOID)
+        Ok(self.alloc(ResolvedProgram { functions }))
     }
 }
 
-impl<'a> Visitor<&'a Function<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &'a Function<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&'a Function<'a>, Result<&'a ResolvedFunction<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(&mut self, visitor: &'a Function<'a>) -> Result<&'a ResolvedFunction<'a>, Error<'a>> {
         self.push_function(visitor.name, visitor);
 
         let return_type = visitor.return_type.accept(self)?;
         self.current_function = Some(return_type);
         self.push();
+        let mut parameter = Vec::new();
         for (type_, name) in &visitor.parameter {
             let type_ = type_.accept(self)?;
-            self.push_variable(name, type_)
+            parameter.push((type_, *name));
+            self.push_variable(name, type_);
         }
+        let statements;
         match &visitor.statements {
             Some(x) => {
-                x.accept(self)?;
+                statements = Some(x.accept(self)?);
                 self.pop();
-                Ok(return_type)
             }
             None => {
+                statements = None;
                 self.pop();
-                Ok(return_type)
             }
-        }
+        };
+        Ok(self.alloc(ResolvedFunction {
+            name: visitor.name,
+            parameter,
+            statements,
+            return_type,
+        }))
     }
 }
 
-impl<'a> Visitor<&Statement<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &Statement<'a>) -> Result<DataType<'a>, Error<'a>> {
-        match visitor {
+impl<'a> Visitor<&Statement<'a>, Result<&'a ResolvedStatement<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(&mut self, visitor: &Statement<'a>) -> Result<&'a ResolvedStatement<'a>, Error<'a>> {
+        Ok(self.bump.alloc(match visitor {
             Statement::Return(x) => match x {
                 Some(expr) => {
                     let expr_type = expr.accept(self)?;
                     match self.current_function {
                         Some(f) => {
-                            if f == expr_type {
-                                Ok(expr_type)
+                            if f == expr_type.data_type() {
+                                ResolvedStatement::Return(Some(expr_type))
                             } else {
-                                Err(Error::ReturnTypeIncorrect {
+                                return Err(Error::ReturnTypeIncorrect {
                                     expected: f,
-                                    found: expr_type,
-                                })
+                                    found: expr_type.data_type(),
+                                });
                             }
                         }
-                        None => Err(Error::ReturnWithoutFunction {}),
+                        None => return Err(Error::ReturnWithoutFunction {}),
                     }
                 }
                 None => match self.current_function {
                     Some(f) => match f {
-                        DataType::VOID => Ok(f),
-                        _ => Err(Error::ReturnTypeIncorrect {
-                            expected: f,
-                            found: DataType::VOID,
-                        }),
+                        DataType::VOID => ResolvedStatement::Return(None),
+                        _ => {
+                            return Err(Error::ReturnTypeIncorrect {
+                                expected: f,
+                                found: DataType::VOID,
+                            })
+                        }
                     },
-                    None => Err(Error::ReturnWithoutFunction {}),
+                    None => return Err(Error::ReturnWithoutFunction {}),
                 },
             },
-            Statement::SingleExpression(e) => e.accept(self),
-            Statement::Compound(compound) => compound.accept(self),
-            Statement::IfStatement(if_statement) => if_statement.accept(self),
-            Statement::ForStatement(for_statement) => for_statement.accept(self),
-            Statement::WhileStatement(while_statement) => while_statement.accept(self),
-            Statement::TypeDefinition(type_def) => type_def.accept(self),
+            Statement::SingleExpression(e) => ResolvedStatement::SingleExpression(e.accept(self)?),
+            Statement::Compound(compound) => ResolvedStatement::Compound(compound.accept(self)?),
+            Statement::IfStatement(if_statement) => {
+                ResolvedStatement::IfStatement(if_statement.accept(self)?)
+            }
+            Statement::ForStatement(for_statement) => {
+                ResolvedStatement::ForStatement(for_statement.accept(self)?)
+            }
+            Statement::WhileStatement(while_statement) => {
+                ResolvedStatement::WhileStatement(while_statement.accept(self)?)
+            }
+            Statement::TypeDefinition(x) => {
+                x.accept(self)?;
+                ResolvedStatement::Empty
+            }
             Statement::VariableDeclaration {
                 name,
                 expression,
                 assignment,
             } => match self.get_variable(name) {
-                Some(_) => Err(Error::VariableRedefinition { name: name }),
+                Some(_) => return Err(Error::VariableRedefinition { name: name }),
                 None => {
                     if self.current_function.is_none() {
                         return Err(Error::VariableDeclarationOutsideOfFunction { name: name });
@@ -233,19 +274,33 @@ impl<'a> Visitor<&Statement<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuild
                             data_type: type_,
                         });
                     }
-                    self.push_variable(name, type_);
+                    let offset = self.push_variable(name, type_);
                     match assignment {
-                        Some(x) if x.accept(self)? != type_ => Err(Error::VariableInitWrong {
-                            expected: type_,
-                            found: x.accept(self)?,
-                            name: name,
-                        }),
-                        _ => Ok(type_),
+                        Some(x) => {
+                            let resolved_expr = x.accept(self)?;
+                            if resolved_expr.data_type() != type_ {
+                                return Err(Error::VariableInitWrong {
+                                    expected: type_,
+                                    found: resolved_expr.data_type(),
+                                    name: name,
+                                });
+                            }
+                            ResolvedStatement::VariableDeclaration {
+                                stack_offset: offset,
+                                assignment: Some(resolved_expr),
+                            }
+                        }
+                        None => ResolvedStatement::VariableDeclaration {
+                            stack_offset: offset,
+                            assignment: None,
+                        },
                     }
                 }
             },
-            _ => Ok(DataType::VOID),
-        }
+            Statement::Conitnue => ResolvedStatement::Conitnue,
+            Statement::Break => ResolvedStatement::Break,
+            Statement::Empty => ResolvedStatement::Empty,
+        }))
     }
 }
 
@@ -257,49 +312,76 @@ impl<'a> Visitor<&TypeDefinition<'a>, Result<DataType<'a>, Error<'a>>> for Scope
     }
 }
 
-impl<'a> Visitor<&WhileStatement<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &WhileStatement<'a>) -> Result<DataType<'a>, Error<'a>> {
-        visitor.condition.accept(self)?;
-        visitor.body.accept(self)
+impl<'a> Visitor<&WhileStatement<'a>, Result<&'a ResolvedWhileStatement<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &WhileStatement<'a>,
+    ) -> Result<&'a ResolvedWhileStatement<'a>, Error<'a>> {
+        let condition = visitor.condition.accept(self)?;
+        let body = visitor.body.accept(self)?;
+        Ok(self.alloc(ResolvedWhileStatement { condition, body }))
     }
 }
 
-impl<'a> Visitor<&ForStatement<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &ForStatement<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&ForStatement<'a>, Result<&'a ResolvedForStatement<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &ForStatement<'a>,
+    ) -> Result<&'a ResolvedForStatement<'a>, Error<'a>> {
         self.push();
-        visitor.init.accept(self)?;
-        visitor.condition.accept(self)?;
+        let init = visitor.init.accept(self)?;
+        let condition = visitor.condition.accept(self)?;
+        let post;
         match &visitor.post {
-            Some(x) => x.accept(self)?,
-            None => DataType::VOID,
+            Some(x) => post = Some(x.accept(self)?),
+            None => post = None,
         };
-        let result = visitor.body.accept(self);
+        let body = visitor.body.accept(self)?;
         self.pop();
-        result
+        Ok(self.alloc(ResolvedForStatement {
+            init,
+            condition,
+            post,
+            body,
+        }))
     }
 }
 
-impl<'a> Visitor<&IfStatement<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &IfStatement<'a>) -> Result<DataType<'a>, Error<'a>> {
-        visitor.condition.accept(self)?;
-        visitor.statements.accept(self)?;
-        match &visitor.else_part {
-            ElsePart::IfStatement(x) => x.accept(self)?,
-            ElsePart::Compound(x) => x.accept(self)?,
-            _ => DataType::VOID,
+impl<'a> Visitor<&IfStatement<'a>, Result<&'a ResolvedIfStatement<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &IfStatement<'a>,
+    ) -> Result<&'a ResolvedIfStatement<'a>, Error<'a>> {
+        let condition = visitor.condition.accept(self)?;
+        let statements = visitor.statements.accept(self)?;
+        let else_part = match &visitor.else_part {
+            ElsePart::IfStatement(x) => ResolvedElsePart::IfStatement(x.accept(self)?),
+            ElsePart::Compound(x) => ResolvedElsePart::Compound(x.accept(self)?),
+            _ => ResolvedElsePart::None,
         };
-        Ok(DataType::VOID)
+        Ok(self.alloc(ResolvedIfStatement {
+            statements,
+            condition,
+            else_part,
+        }))
     }
 }
 
-impl<'a> Visitor<&Compound<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &Compound<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&Compound<'a>, Result<&'a ResolvedCompound<'a>, Error<'a>>> for ScopeBuilder<'a> {
+    fn visit(&mut self, visitor: &Compound<'a>) -> Result<&'a ResolvedCompound<'a>, Error<'a>> {
+        let mut statements = Vec::new();
         self.push();
         for s in &visitor.statements {
-            s.accept(self)?;
+            statements.push(s.accept(self)?);
         }
         self.pop();
-        Ok(DataType::VOID)
+        Ok(self.alloc(ResolvedCompound { statements }))
     }
 }
 
@@ -311,9 +393,12 @@ impl<'a> Visitor<&TypeExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scope
                 TokenKind::CHAR => DataType::CHAR,
                 TokenKind::LONG => DataType::LONG,
                 TokenKind::VOID => DataType::VOID,
-                _ => panic!("TODO:!"),
+                _ => panic!(
+                    "This should not happen! Cannot resolve data-type for token: {:?}",
+                    x
+                ),
             },
-            TypeExpression::Typeof(e) => e.accept(self)?,
+            TypeExpression::Typeof(e) => e.accept(self)?.data_type(),
             TypeExpression::Named(name) => match self.get_type(name) {
                 Some(x) => x,
                 None => return Err(Error::UnknownType { type_name: name }),
@@ -374,23 +459,37 @@ impl<'a> Visitor<&TypeExpression<'a>, Result<DataType<'a>, Error<'a>>> for Scope
     }
 }
 
-impl<'a> Visitor<&Expression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &Expression<'a>) -> Result<DataType<'a>, Error<'a>> {
-        Ok(match visitor {
-            Expression::IntLiteral(_) => DataType::INT,
-            Expression::CharLiteral(_) => DataType::CHAR,
-            Expression::FunctionCall(function_call) => function_call.accept(self)?,
-            Expression::ArrayExpression(array_expression) => array_expression.accept(self)?,
-            Expression::StructExpresion(struct_expression) => struct_expression.accept(self)?,
-            Expression::Assignment(assignment) => assignment.accept(self)?,
-            Expression::TypeExpression(t) => t.accept(self)?,
-            Expression::SizeOf(_) => DataType::INT,
+impl<'a> Visitor<&Expression<'a>, Result<&'a ResolvedExpression<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(&mut self, visitor: &Expression<'a>) -> Result<&'a ResolvedExpression<'a>, Error<'a>> {
+        Ok(self.bump.alloc(match visitor {
+            Expression::IntLiteral(i) => ResolvedExpression::IntLiteral(*i),
+            Expression::CharLiteral(c) => ResolvedExpression::CharLiteral(*c),
+            Expression::FunctionCall(function_call) => {
+                ResolvedExpression::FunctionCall(function_call.accept(self)?)
+            }
+            Expression::ArrayExpression(array_expression) => {
+                ResolvedExpression::ArrayExpression(array_expression.accept(self)?)
+            }
+            Expression::StructExpresion(struct_expression) => {
+                ResolvedExpression::StructExpresion(struct_expression.accept(self)?)
+            }
+            Expression::Assignment(assignment) => {
+                ResolvedExpression::Assignment(assignment.accept(self)?)
+            }
+            Expression::TypeExpression(t) => ResolvedExpression::TypeExpression(t.accept(self)?),
+            Expression::SizeOf(x) => ResolvedExpression::SizeOf(x.accept(self)?.data_type().size()),
             Expression::FieldAccess { name, operand } => {
-                let base = operand.accept(self)?;
-                match base {
+                let resolved_operand = operand.accept(self)?;
+                match resolved_operand.data_type() {
                     DataType::PTR(type_) => match type_ {
                         DataType::Struct(x) => match x.field(name) {
-                            Some(x) => x,
+                            Some((offset, type_)) => ResolvedExpression::FieldAccess {
+                                field_offset: offset,
+                                data_type: type_,
+                                operand: resolved_operand,
+                            },
                             None => {
                                 return Err(Error::UnknownField {
                                     expression: operand,
@@ -408,10 +507,14 @@ impl<'a> Visitor<&Expression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuil
                 }
             }
             Expression::ArrowAccess { name, operand } => {
-                let type_ = operand.accept(self)?;
-                match type_ {
+                let resolved_operand = operand.accept(self)?;
+                match resolved_operand.data_type() {
                     DataType::Struct(x) => match x.field(name) {
-                        Some(x) => x,
+                        Some((offset, type_)) => ResolvedExpression::ArrowAccess {
+                            field_offset: offset,
+                            data_type: type_,
+                            operand: resolved_operand,
+                        },
                         None => {
                             return Err(Error::UnknownField {
                                 expression: operand,
@@ -426,15 +529,24 @@ impl<'a> Visitor<&Expression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuil
                     }
                 }
             }
-            Expression::Indexing { operand, .. } => {
-                let base = operand.accept(self)?;
-                match base {
-                    DataType::PTR(x) => *x,
+            Expression::Indexing { operand, index } => {
+                let resolved_operand = operand.accept(self)?;
+                let resolved_index = index.accept(self)?;
+                if !resolved_index.data_type().is_number() {
+                    return Err(Error::ArrayIndexNotANumber { index: index });
+                }
+
+                match resolved_operand.data_type() {
+                    DataType::PTR(x) => ResolvedExpression::Indexing {
+                        index: resolved_index,
+                        operand: resolved_operand,
+                        data_type: *x,
+                    },
                     _ => return Err(Error::DerefOfNonPointer { expr: operand }),
                 }
             }
             Expression::NamedVariable { name } => match self.get_variable(name) {
-                Some(v) => v.data_type(),
+                Some(v) => ResolvedExpression::NamedVariable { variable: v },
                 None => return Err(Error::UnknownVariable { name }),
             },
             Expression::Unary {
@@ -442,59 +554,110 @@ impl<'a> Visitor<&Expression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuil
                 operation,
             } => match operation {
                 UnaryOps::REF => {
-                    let base = expression.accept(self)?;
-                    DataType::PTR(self.alloc(base))
+                    //TODO: have to check if its an l-value
+                    // i don't know how yet
+                    let expression = expression.accept(self)?;
+                    ResolvedExpression::Unary {
+                        expression: expression,
+                        operation: *operation,
+                        resulting_type: DataType::PTR(self.alloc(expression.data_type())),
+                    }
                 }
                 UnaryOps::DEREF => {
-                    let base = expression.accept(self)?;
-                    match base {
-                        DataType::PTR(x) => *x,
+                    let resolved_expression = expression.accept(self)?;
+                    match resolved_expression.data_type() {
+                        DataType::PTR(x) => ResolvedExpression::Unary {
+                            expression: resolved_expression,
+                            operation: *operation,
+                            resulting_type: *x,
+                        },
                         _ => return Err(Error::DerefOfNonPointer { expr: expression }),
                     }
                 }
-                UnaryOps::Cast(_) => todo!(),
-                _ => expression.accept(self)?,
+                UnaryOps::Cast(expr) => {
+                    let type_ = expr.accept(self)?;
+                    let expression = expression.accept(self)?;
+                    ResolvedExpression::Cast {
+                        expression: expression,
+                        data_type: type_,
+                    }
+                }
+                _ => {
+                    let resolved_expression = expression.accept(self)?;
+                    if !resolved_expression.data_type().is_number() {
+                        return Err(Error::UnaryOperandNotNumber {
+                            expression,
+                            operation: *operation,
+                        });
+                    }
+                    ResolvedExpression::Unary {
+                        expression: resolved_expression,
+                        operation: *operation,
+                        resulting_type: resolved_expression.data_type(),
+                    }
+                }
             },
-            Expression::BinaryExpression { lhs, rhs, .. } => {
-                let lhs_type = lhs.accept(self)?;
-                let rhs_type = rhs.accept(self)?;
-                if lhs_type != rhs_type {
+            Expression::BinaryExpression {
+                lhs,
+                rhs,
+                operation,
+            } => {
+                let resolved_lhs = lhs.accept(self)?;
+                let resolved_rhs = rhs.accept(self)?;
+                if resolved_lhs.data_type() != resolved_rhs.data_type() {
                     return Err(Error::OperandsDifferentDatatypes { lhs: lhs, rhs: rhs });
                 }
-                lhs_type
+                ResolvedExpression::BinaryExpression {
+                    lhs: resolved_lhs,
+                    rhs: resolved_rhs,
+                    operation: *operation,
+                    resulting_type: resolved_lhs.data_type(),
+                }
             }
-        })
+        }))
     }
 }
 
-impl<'a> Visitor<&'a Assignment<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &'a Assignment<'a>) -> Result<DataType<'a>, Error<'a>> {
-        Ok(match visitor {
+impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &'a Assignment<'a>,
+    ) -> Result<&'a ResolvedAssignment<'a>, Error<'a>> {
+        Ok(self.bump.alloc(match visitor {
             Assignment::VariableAssignment { name, expression } => match self.get_variable(name) {
                 Some(x) => {
-                    let expr_type = expression.accept(self)?;
-                    if expr_type != x.data_type() {
+                    let expr = expression.accept(self)?;
+                    if expr.data_type() != x.data_type {
                         return Err(Error::CannotAssignVariable {
                             assignment: expression,
                             variable: name,
                         });
                     }
-                    expr_type
+                    ResolvedAssignment::VariableAssignment {
+                        variable: x,
+                        expression: expr,
+                    }
                 }
                 None => return Err(Error::UnknownVariable { name: name }),
             },
             Assignment::PtrAssignment { value, address } => {
-                let base = address.accept(self)?;
-                let value_type = value.accept(self)?;
-                match base {
+                let resolved_address = address.accept(self)?;
+                let resolved_value = value.accept(self)?;
+                match resolved_address.data_type() {
                     DataType::PTR(base) => {
-                        if *base != value_type {
+                        if *base != resolved_value.data_type() {
                             return Err(Error::CannotAssign {
                                 from: value,
                                 to: address,
                             });
                         }
-                        *base
+                        ResolvedAssignment::PtrAssignment {
+                            value: resolved_value,
+                            address: resolved_value,
+                            data_type: *base,
+                        }
                     }
                     _ => return Err(Error::DerefOfNonPointer { expr: address }),
                 }
@@ -504,21 +667,26 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<DataType<'a>, Error<'a>>> for ScopeB
                 value,
                 address,
             } => {
-                let index_type = index.accept(self)?;
-                if !index_type.is_number() {
+                let resolved_index = index.accept(self)?;
+                if !resolved_index.data_type().is_number() {
                     return Err(Error::ArrayIndexNotANumber { index: index });
                 }
-                let value_type = value.accept(self)?;
-                let base = address.accept(self)?;
-                match base {
+                let resolved_value = value.accept(self)?;
+                let resolved_address = address.accept(self)?;
+                match resolved_address.data_type() {
                     DataType::PTR(base) => {
-                        if *base != value_type {
+                        if *base != resolved_value.data_type() {
                             return Err(Error::CannotAssign {
                                 from: value,
                                 to: address,
                             });
                         }
-                        *base
+                        ResolvedAssignment::ArrayAssignment {
+                            index: resolved_index,
+                            value: resolved_value,
+                            address: resolved_address,
+                            data_type: *base,
+                        }
                     }
                     _ => return Err(Error::DerefOfNonPointer { expr: address }),
                 }
@@ -528,18 +696,23 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<DataType<'a>, Error<'a>>> for ScopeB
                 value,
                 address,
             } => {
-                let struct_type = address.accept(self)?;
-                let value_type = value.accept(self)?;
-                match struct_type {
+                let resolved_address = address.accept(self)?;
+                let resolved_value = value.accept(self)?;
+                match resolved_address.data_type() {
                     DataType::Struct(x) => match x.field(name) {
-                        Some(field_type) => {
-                            if field_type != value_type {
+                        Some((field_offset, field_type)) => {
+                            if field_type != resolved_value.data_type() {
                                 return Err(Error::CannotAssign {
                                     from: value,
                                     to: address,
                                 });
                             }
-                            field_type
+                            ResolvedAssignment::FieldAssignment {
+                                field_offset: field_offset,
+                                value: resolved_value,
+                                address: resolved_address,
+                                data_type: field_type,
+                            }
                         }
                         None => {
                             return Err(Error::UnknownField {
@@ -555,43 +728,76 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<DataType<'a>, Error<'a>>> for ScopeB
                     }
                 }
             }
-        })
+        }))
     }
 }
 
-impl<'a> Visitor<&StructExpression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &StructExpression<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&StructExpression<'a>, Result<&'a ResolvedStructExpression<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &StructExpression<'a>,
+    ) -> Result<&'a ResolvedStructExpression<'a>, Error<'a>> {
         let mut resolved_fields = Vec::new();
         for (name, type_) in &visitor.fields {
-            resolved_fields.push((*name, type_.accept(self)?));
+            let type_ = type_.accept(self)?;
+            resolved_fields.push((*name, type_));
         }
-        let struct_ = Struct::new(resolved_fields);
-        Ok(DataType::Struct(self.alloc(struct_)))
+        let data_type: Vec<(&str, DataType<'_>)> = resolved_fields
+            .iter()
+            .map(|(name, type_)| (*name, type_.data_type()))
+            .collect();
+        let data_type = Struct::new(data_type);
+        let data_type = DataType::Struct(self.alloc(data_type));
+        Ok(self.alloc(ResolvedStructExpression {
+            fields: resolved_fields,
+            data_type,
+        }))
     }
 }
 
-impl<'a> Visitor<&ArrayExpression<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &ArrayExpression<'a>) -> Result<DataType<'a>, Error<'a>> {
-        Ok(match visitor {
+impl<'a> Visitor<&ArrayExpression<'a>, Result<&'a ResolvedArrayExpression<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &ArrayExpression<'a>,
+    ) -> Result<&'a ResolvedArrayExpression<'a>, Error<'a>> {
+        Ok(self.bump.alloc(match visitor {
             ArrayExpression::StackArray { expressions } => {
-                let base_type = match expressions.first() {
+                let first_expr = match expressions.first() {
                     Some(x) => x.accept(self)?,
                     None => return Err(Error::EmptyArray {}),
                 };
+                let mut resolved_expressions = vec![first_expr];
                 for expr in expressions.iter().skip(1) {
-                    if expr.accept(self)? != base_type {
+                    let expr = expr.accept(self)?;
+                    if expr.data_type() != first_expr.data_type() {
                         return Err(Error::ArrayOfDifferentTypes {});
                     }
+                    resolved_expressions.push(expr);
                 }
-                DataType::PTR(self.alloc(base_type))
+                ResolvedArrayExpression::StackArray {
+                    expressions: resolved_expressions,
+                    data_type: first_expr.data_type(),
+                }
             }
-            ArrayExpression::StringLiteral { .. } => DataType::PTR(self.alloc(DataType::CHAR)),
-        })
+            ArrayExpression::StringLiteral { string } => ResolvedArrayExpression::StringLiteral {
+                string,
+                data_type: DataType::PTR(self.alloc(DataType::CHAR)),
+            },
+        }))
     }
 }
 
-impl<'a> Visitor<&FunctionCall<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBuilder<'a> {
-    fn visit(&mut self, visitor: &FunctionCall<'a>) -> Result<DataType<'a>, Error<'a>> {
+impl<'a> Visitor<&FunctionCall<'a>, Result<&'a ResolvedFunctionCall<'a>, Error<'a>>>
+    for ScopeBuilder<'a>
+{
+    fn visit(
+        &mut self,
+        visitor: &FunctionCall<'a>,
+    ) -> Result<&'a ResolvedFunctionCall<'a>, Error<'a>> {
         match self.get_function(visitor.name) {
             Some(func) => {
                 if func.parameter.len() != visitor.parameter.len() {
@@ -601,21 +807,29 @@ impl<'a> Visitor<&FunctionCall<'a>, Result<DataType<'a>, Error<'a>>> for ScopeBu
                         found: visitor.parameter.len(),
                     });
                 }
+                let mut resolved_parameter = Vec::new();
                 for (found, (expected, parameter_name)) in
                     visitor.parameter.iter().zip(&func.parameter)
                 {
                     let expected = expected.accept(self)?;
                     let found = found.accept(self)?;
-                    if expected != found {
+                    if expected != found.data_type() {
                         return Err(Error::ParamterTypeMismatch {
                             function: visitor.name,
                             expected: expected,
-                            found: found,
+                            found: found.data_type(),
                             parameter_name,
                         });
                     }
+                    resolved_parameter.push(found);
                 }
-                Ok(func.return_type.accept(self)?)
+                let return_type = func.return_type.accept(self)?;
+
+                Ok(self.alloc(ResolvedFunctionCall {
+                    name: visitor.name,
+                    parameter: resolved_parameter,
+                    return_type,
+                }))
             }
             None => Err(Error::UnkownFunction { name: visitor.name }),
         }

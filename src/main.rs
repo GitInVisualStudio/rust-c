@@ -33,7 +33,7 @@ fn main() -> ExitCode {
         Ok(program) => {
             let finished = program.accept(&mut scope_builder);
             match finished {
-                Ok(_) => println!("{:#?}\neverything passed!", program),
+                Ok(program) => println!("{:#?}\neverything passed!", program),
                 Err(e) => println!("Error building scope: {:#?}\n\n{:#?}", e, program),
             }
         }

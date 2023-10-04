@@ -30,22 +30,24 @@ impl<'a> DataType<'a> {
     pub fn is_number(&self) -> bool {
         match self {
             DataType::INT | DataType::LONG | DataType::CHAR => true,
-            _ => false
+            _ => false,
         }
     }
 }
 
 impl<'a> Struct<'a> {
     pub fn new(fields: Vec<(&'a str, DataType<'a>)>) -> Struct<'a> {
-        Struct {
-            fields: fields,
-        }
+        Struct { fields: fields }
     }
 
-    pub fn field(&self, name: &'a str) -> Option<DataType<'a>> {
-        self.fields
-            .iter()
-            .find(|(field_name, _)| *field_name == name)
-            .map(|x| x.1)
+    pub fn field(&self, name: &'a str) -> Option<(usize, DataType<'a>)> {
+        let mut offset = 0;
+        for (field_name, type_) in &self.fields {
+            if *field_name == name {
+                return Some((offset, *type_));
+            }
+            offset += type_.size()
+        }
+        return None;
     }
 }

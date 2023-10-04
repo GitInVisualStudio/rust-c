@@ -1,5 +1,5 @@
-typedef int u8;
+void main() {
+    int a;
+    int b;
 
-void test(int a) {
-    return test(5);
 }
