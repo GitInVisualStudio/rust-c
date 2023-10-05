@@ -130,7 +130,7 @@ impl Generator {
         self.emit("\tret\n")
     }
 
-    pub fn emit_string(&mut self, label: usize, string: &str) -> Result<usize, Error> {
+    pub fn emit_string(&mut self, label: i32, string: &str) -> Result<usize, Error> {
         self.emit(&format!(
             "    .section   .rodata
 .LC{}:
@@ -290,8 +290,7 @@ impl<'a> Visitor<&ResolvedFunction<'a>, Result<usize, Error>> for Generator {
             return Ok(0);
         }
         self.emit_label(visitor.name)?;
-        let parameter_stack_size = visitor.parameter.iter().map(|(t, _)| t.size()).sum();
-        self.push_stack(parameter_stack_size)?;
+        self.push_stack(visitor.frame_size)?;
 
         //push parameter onto the local stack
         let mut offset = 0;
@@ -480,11 +479,18 @@ impl<'a> Visitor<&ResolvedExpression<'a>, Result<usize, Error>> for Generator {
                 operand,
             } => {
                 operand.accept(self)?;
-                Reg::set_size(data_type.size());
-                self.mov(
-                    Reg::current().as_address().offset(*field_offset),
-                    Reg::current(),
-                )
+                match data_type {
+                    DataType::Struct(_) => {
+                        self.add(Reg::IMMEDIATE(*field_offset as i64), Reg::current())
+                    }
+                    _ => {
+                        Reg::set_size(data_type.size());
+                        self.mov(
+                            Reg::current().as_address().offset(*field_offset),
+                            Reg::current(),
+                        )
+                    }
+                }
             }
             ResolvedExpression::StructExpresion(expr) => expr.accept(self),
             ResolvedExpression::SizeOf(value) => {
@@ -574,7 +580,7 @@ impl<'a> Visitor<&ResolvedWhileStatement<'a>, Result<usize, Error>> for Generato
 impl<'a> Visitor<&ResolvedAssignment<'a>, Result<usize, Error>> for Generator {
     fn visit(&mut self, visitor: &ResolvedAssignment<'a>) -> Result<usize, Error> {
         match visitor {
-            ResolvedAssignment::VariableAssignment {
+            ResolvedAssignment::StackAssignment {
                 variable,
                 expression,
             } => match variable.data_type {
@@ -730,17 +736,16 @@ impl<'a> Visitor<&ResolvedAssignment<'a>, Result<usize, Error>> for Generator {
 
 impl<'a> Visitor<&ResolvedStructExpression<'a>, Result<usize, Error>> for Generator {
     fn visit(&mut self, visitor: &ResolvedStructExpression<'a>) -> Result<usize, Error> {
-        todo!()
-        // for assignment in visitor.assignments() {
-        //     assignment.accept(self)?;
-        // }
-        // Reg::set_size(8);
-        // self.lea(
-        //     Reg::STACK {
-        //         offset: *visitor.offset(),
-        //     },
-        //     Reg::current(),
-        // )
+        for assignment in &visitor.fields {
+            assignment.accept(self)?;
+        }
+        Reg::set_size(8);
+        self.lea(
+            Reg::STACK {
+                offset: visitor.stack_offset,
+            },
+            Reg::current(),
+        )
     }
 }
 
@@ -750,27 +755,31 @@ impl<'a> Visitor<&ResolvedArrayExpression<'a>, Result<usize, Error>> for Generat
             ResolvedArrayExpression::StackArray {
                 expressions,
                 data_type,
+                stack_offset,
             } => {
-                todo!()
-                // let mut start_offset = *offset;
-                // for expr in expressinos {
-                //     expr.accept(self)?;
-                //     self.mov(
-                //         Reg::current(),
-                //         Reg::STACK {
-                //             offset: start_offset,
-                //         },
-                //     )?;
-                //     start_offset -= base_type.size();
-                // }
-                // Reg::set_size(8);
-                // self.lea(Reg::STACK { offset: *offset }, Reg::current())
+                for expr in expressions {
+                    expr.accept(self)?;
+                }
+                Reg::set_size(data_type.size());
+                self.lea(
+                    Reg::STACK {
+                        offset: *stack_offset,
+                    },
+                    Reg::current(),
+                )
             }
-            ResolvedArrayExpression::StringLiteral { string, data_type } => {
-                // self.emit_string(*label, string)?;
-                // Reg::set_size(8);
-                // self.emit(&format!("\tlea \t.LC{}(%rip), {}\n", label, Reg::current()))
-                todo!()
+            ResolvedArrayExpression::StringLiteral {
+                string,
+                string_label_index,
+                ..
+            } => {
+                self.emit_string(*string_label_index, string)?;
+                Reg::set_size(8);
+                self.emit(&format!(
+                    "\tlea \t.LC{}(%rip), {}\n",
+                    string_label_index,
+                    Reg::current()
+                ))
             }
         }
     }

@@ -1,16 +1,18 @@
 use crate::visitor::Visitable;
 
-use super::{resolved_expression::ResolvedExpression, DataType};
+use super::{DataType, resolved_assignment::ResolvedAssignment};
 
 #[derive(Debug)]
 pub enum ResolvedArrayExpression<'a> {
     StackArray {
-        expressions: Vec<&'a ResolvedExpression<'a>>,
+        expressions: Vec<&'a ResolvedAssignment<'a>>,
         data_type: DataType<'a>,
+        stack_offset: usize,
     },
     StringLiteral {
         string: &'a str,
         data_type: DataType<'a>,
+        string_label_index: i32
     },
 }
 

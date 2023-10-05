@@ -7,7 +7,7 @@ pub struct ResolvedFunction<'a> {
     pub(crate) name: &'a str,
     pub(crate) statements: Option<&'a ResolvedCompound<'a>>,
     pub(crate) parameter: Vec<(DataType<'a>, &'a str)>,
-    pub(crate) return_type: DataType<'a>,
+    pub(crate) frame_size: usize
 }
 
 impl Visitable for ResolvedFunction<'_> {}

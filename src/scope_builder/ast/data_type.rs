@@ -33,6 +33,17 @@ impl<'a> DataType<'a> {
             _ => false,
         }
     }
+
+    pub fn can_convert(&self, other: DataType<'a>) -> bool {
+        match (self, other) {
+            (DataType::PTR(_), y) if y.is_number() => true,
+            (y, DataType::PTR(_)) if y.is_number() => true,
+            (x, y) if x.is_number() && y.is_number() => true,
+            (DataType::PTR(_), DataType::PTR(DataType::VOID)) => true,
+            (DataType::PTR(DataType::VOID), DataType::PTR(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl<'a> Struct<'a> {

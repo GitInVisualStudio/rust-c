@@ -4,7 +4,7 @@ use super::{resolved_expression::ResolvedExpression, DataType, Variable};
 
 #[derive(Debug)]
 pub enum ResolvedAssignment<'a> {
-    VariableAssignment {
+    StackAssignment {
         variable: Variable<'a>,
         expression: &'a ResolvedExpression<'a>,
     },
@@ -32,7 +32,7 @@ impl Visitable for ResolvedAssignment<'_> {}
 impl<'a> ResolvedAssignment<'a> {
     pub fn data_type(&self) -> DataType<'a> {
         *match self {
-            ResolvedAssignment::VariableAssignment { variable, .. } => &variable.data_type,
+            ResolvedAssignment::StackAssignment { variable, .. } => &variable.data_type,
             ResolvedAssignment::PtrAssignment { data_type, .. } => data_type,
             ResolvedAssignment::ArrayAssignment { data_type, .. } => data_type,
             ResolvedAssignment::FieldAssignment { data_type, .. } => data_type,

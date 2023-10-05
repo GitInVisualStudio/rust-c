@@ -106,7 +106,10 @@ pub struct ScopeBuilder<'a> {
     scope: Scope<'a>,
     current_function: Option<DataType<'a>>,
     loop_label_index: Vec<i32>,
+    string_index: i32,
     stack_offset: usize,
+    stack_scope: Vec<usize>,
+    frame_size: usize,
     label_index: i32,
 }
 
@@ -118,7 +121,10 @@ impl<'a> ScopeBuilder<'a> {
             current_function: None,
             loop_label_index: Vec::new(),
             stack_offset: 0,
+            stack_scope: vec![0],
             label_index: 0,
+            string_index: 0,
+            frame_size: 0,
         }
     }
 
@@ -127,11 +133,14 @@ impl<'a> ScopeBuilder<'a> {
     }
 
     pub fn push(&mut self) {
-        self.scope.push()
+        self.scope.push();
+        self.stack_scope.push(self.stack_offset);
     }
 
     pub fn pop(&mut self) {
-        self.scope.pop()
+        self.scope.pop();
+        self.frame_size = usize::max(self.frame_size, self.stack_offset);
+        self.stack_offset = self.stack_scope.pop().unwrap();
     }
 
     pub fn get_type(&self, name: &'a str) -> Option<DataType<'a>> {
@@ -165,6 +174,11 @@ impl<'a> ScopeBuilder<'a> {
         self.label_index += 1;
         self.label_index
     }
+
+    pub fn get_string_label(&mut self) -> i32 {
+        self.string_index += 1;
+        self.string_index
+    }
 }
 
 impl<'a> Visitor<&Program<'a>, Result<&'a ResolvedProgram<'a>, Error<'a>>> for ScopeBuilder<'a> {
@@ -186,11 +200,35 @@ impl<'a> Visitor<&'a Function<'a>, Result<&'a ResolvedFunction<'a>, Error<'a>>>
     for ScopeBuilder<'a>
 {
     fn visit(&mut self, visitor: &'a Function<'a>) -> Result<&'a ResolvedFunction<'a>, Error<'a>> {
-        self.push_function(visitor.name, visitor);
-
+        self.stack_offset = 0;
+        self.frame_size = 0;
         let return_type = visitor.return_type.accept(self)?;
+        match self.get_function(visitor.name) {
+            Some(x) if x.statements.is_some() == visitor.statements.is_some() => {
+                return Err(Error::RedeclarationOfFunction { name: visitor.name })
+            }
+            Some(x) => {
+                let defined_return = x.return_type.accept(self)?;
+                if defined_return != return_type {
+                    return Err(Error::FunctionDefinitionNotSameAsDeclaration { name: x.name });
+                }
+                if x.parameter.len() != visitor.parameter.len() {
+                    return Err(Error::FunctionDefinitionNotSameAsDeclaration { name: x.name });
+                }
+                for ((expected, _), (found, _)) in x.parameter.iter().zip(&visitor.parameter) {
+                    let expected = expected.accept(self)?;
+                    let found = found.accept(self)?;
+                    if expected != found {
+                        return Err(Error::FunctionDefinitionNotSameAsDeclaration { name: x.name });
+                    }
+                }
+            }
+            None => (),
+        };
+        self.push_function(visitor.name, visitor);
         self.current_function = Some(return_type);
         self.push();
+
         let mut parameter = Vec::new();
         for (type_, name) in &visitor.parameter {
             let type_ = type_.accept(self)?;
@@ -212,7 +250,7 @@ impl<'a> Visitor<&'a Function<'a>, Result<&'a ResolvedFunction<'a>, Error<'a>>>
             name: visitor.name,
             parameter,
             statements,
-            return_type,
+            frame_size: self.frame_size,
         }))
     }
 }
@@ -416,6 +454,14 @@ impl<'a> Visitor<&Compound<'a>, Result<&'a ResolvedCompound<'a>, Error<'a>>> for
     fn visit(&mut self, visitor: &Compound<'a>) -> Result<&'a ResolvedCompound<'a>, Error<'a>> {
         let mut statements = Vec::new();
         self.push();
+        if visitor.statements.len() == 1 {
+            match visitor.statements.first().unwrap() {
+                Statement::VariableDeclaration { name, .. } => {
+                    return Err(Error::SingleStatementMayNotBeDeclaration { name })
+                }
+                _ => (),
+            }
+        }
         for s in &visitor.statements {
             statements.push(s.accept(self)?);
         }
@@ -643,7 +689,9 @@ impl<'a> Visitor<&Expression<'a>, Result<&'a ResolvedExpression<'a>, Error<'a>>>
             } => {
                 let resolved_lhs = lhs.accept(self)?;
                 let resolved_rhs = rhs.accept(self)?;
-                if resolved_lhs.data_type() != resolved_rhs.data_type() {
+                let lhs_data = resolved_lhs.data_type();
+                let rhs_data = resolved_rhs.data_type();
+                if lhs_data != rhs_data && !lhs_data.can_convert(rhs_data) {
                     return Err(Error::OperandsDifferentDatatypes { lhs: lhs, rhs: rhs });
                 }
                 ResolvedExpression::BinaryExpression {
@@ -668,13 +716,15 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
             Assignment::VariableAssignment { name, expression } => match self.get_variable(name) {
                 Some(x) => {
                     let expr = expression.accept(self)?;
-                    if expr.data_type() != x.data_type {
+                    if expr.data_type() != x.data_type && !expr.data_type().can_convert(x.data_type)
+                    {
                         return Err(Error::CannotAssignVariable {
                             assignment: expression,
-                            variable: name,
+                            name: name,
+                            variable: x,
                         });
                     }
-                    ResolvedAssignment::VariableAssignment {
+                    ResolvedAssignment::StackAssignment {
                         variable: x,
                         expression: expr,
                     }
@@ -686,7 +736,9 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
                 let resolved_value = value.accept(self)?;
                 match resolved_address.data_type() {
                     DataType::PTR(base) => {
-                        if *base != resolved_value.data_type() {
+                        if *base != resolved_value.data_type()
+                            && !resolved_value.data_type().can_convert(*base)
+                        {
                             return Err(Error::CannotAssign {
                                 from: value,
                                 to: address,
@@ -714,7 +766,9 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
                 let resolved_address = address.accept(self)?;
                 match resolved_address.data_type() {
                     DataType::PTR(base) => {
-                        if *base != resolved_value.data_type() {
+                        if *base != resolved_value.data_type()
+                            && !resolved_value.data_type().can_convert(*base)
+                        {
                             return Err(Error::CannotAssign {
                                 from: value,
                                 to: address,
@@ -740,7 +794,9 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
                 match resolved_address.data_type() {
                     DataType::Struct(x) => match x.field(name) {
                         Some((field_offset, field_type)) => {
-                            if field_type != resolved_value.data_type() {
+                            if field_type != resolved_value.data_type()
+                                && !resolved_value.data_type().can_convert(field_type)
+                            {
                                 return Err(Error::CannotAssign {
                                     from: value,
                                     to: address,
@@ -763,7 +819,9 @@ impl<'a> Visitor<&'a Assignment<'a>, Result<&'a ResolvedAssignment<'a>, Error<'a
                     DataType::PTR(x) => match x {
                         DataType::Struct(x) => match x.field(name) {
                             Some((field_offset, field_type)) => {
-                                if field_type != resolved_value.data_type() {
+                                if field_type != resolved_value.data_type()
+                                    && !resolved_value.data_type().can_convert(field_type)
+                                {
                                     return Err(Error::CannotAssign {
                                         from: value,
                                         to: address,
@@ -807,20 +865,30 @@ impl<'a> Visitor<&StructExpression<'a>, Result<&'a ResolvedStructExpression<'a>,
         &mut self,
         visitor: &StructExpression<'a>,
     ) -> Result<&'a ResolvedStructExpression<'a>, Error<'a>> {
-        let mut resolved_fields = Vec::new();
-        for (name, type_) in &visitor.fields {
+        let mut fields = Vec::new();
+        let mut named_fields = Vec::new();
+        for (name, type_) in visitor.fields.iter().rev() {
             let type_ = type_.accept(self)?;
-            resolved_fields.push((*name, type_));
+            let data_type = type_.data_type();
+            self.stack_offset += data_type.size();
+            named_fields.push((*name, data_type));
+            let assignment = ResolvedAssignment::StackAssignment {
+                variable: Variable {
+                    stack_offset: self.stack_offset,
+                    data_type,
+                },
+                expression: type_,
+            };
+            fields.push(&*self.alloc(assignment))
         }
-        let data_type: Vec<(&str, DataType<'_>)> = resolved_fields
-            .iter()
-            .map(|(name, type_)| (*name, type_.data_type()))
-            .collect();
-        let data_type = Struct::new(data_type);
+        named_fields.reverse();
+        let data_type = Struct::new(named_fields);
         let data_type = DataType::Struct(self.alloc(data_type));
+
         Ok(self.alloc(ResolvedStructExpression {
-            fields: resolved_fields,
+            fields,
             data_type,
+            stack_offset: self.stack_offset,
         }))
     }
 }
@@ -838,22 +906,32 @@ impl<'a> Visitor<&ArrayExpression<'a>, Result<&'a ResolvedArrayExpression<'a>, E
                     Some(x) => x.accept(self)?,
                     None => return Err(Error::EmptyArray {}),
                 };
-                let mut resolved_expressions = vec![first_expr];
-                for expr in expressions.iter().skip(1) {
+                let mut resolved_expressions = Vec::new();
+                for expr in expressions.iter().rev() {
                     let expr = expr.accept(self)?;
+                    self.stack_offset += expr.data_type().size();
                     if expr.data_type() != first_expr.data_type() {
                         return Err(Error::ArrayOfDifferentTypes {});
                     }
-                    resolved_expressions.push(expr);
+                    let assignment = ResolvedAssignment::StackAssignment {
+                        variable: Variable {
+                            stack_offset: self.stack_offset,
+                            data_type: expr.data_type(),
+                        },
+                        expression: expr,
+                    };
+                    resolved_expressions.push(&*self.alloc(assignment));
                 }
                 ResolvedArrayExpression::StackArray {
                     expressions: resolved_expressions,
-                    data_type: first_expr.data_type(),
+                    data_type: DataType::PTR(self.alloc(first_expr.data_type())),
+                    stack_offset: self.stack_offset,
                 }
             }
             ArrayExpression::StringLiteral { string } => ResolvedArrayExpression::StringLiteral {
                 string,
                 data_type: DataType::PTR(self.alloc(DataType::CHAR)),
+                string_label_index: self.get_string_label(),
             },
         }))
     }
@@ -881,8 +959,8 @@ impl<'a> Visitor<&FunctionCall<'a>, Result<&'a ResolvedFunctionCall<'a>, Error<'
                 {
                     let expected = expected.accept(self)?;
                     let found = found.accept(self)?;
-                    if expected != found.data_type() {
-                        return Err(Error::ParamterTypeMismatch {
+                    if expected != found.data_type() && !found.data_type().can_convert(expected) {
+                        return Err(Error::ParameterTypeMismatch {
                             function: visitor.name,
                             expected: expected,
                             found: found.data_type(),

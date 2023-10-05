@@ -39,11 +39,17 @@ fn main() -> ExitCode {
                     println!("program parsed sucessfully!");
                     let mut gen = Generator::new(output).expect("not able to open output file!");
                     let result = gen.generate(program);
-                },
-                Err(e) => println!("Error building scope: {:#?}", e),
+                }
+                Err(e) => {
+                    println!("Error building scope: {:#?}", e);
+                    return ExitCode::FAILURE;
+                }
             }
         }
-        Err(e) => println!("Error while parsing: {:#?}", e),
+        Err(e) => {
+            println!("Error while parsing: {:#?}", e);
+            return ExitCode::FAILURE;
+        }
     }
     ExitCode::SUCCESS
 }

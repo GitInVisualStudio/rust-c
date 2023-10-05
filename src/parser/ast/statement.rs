@@ -68,8 +68,15 @@ impl<'a> Parser<'a> {
             | TokenKind::IDENT => {
                 let anchor = self.anchor();
 
-                let expression = self.type_expression()?;
+                let mut expression = self.type_expression()?;
                 let name = self.expect(TokenKind::IDENT);
+
+                if self.peek() == TokenKind::LBRACE {
+                    self.next();
+                    expression = self.alloc(TypeExpression::Pointer(expression));
+                    self.expect(TokenKind::RBRACE)?;
+                }
+
                 match name {
                     Ok(name) => {
                         let mut assignment = None;

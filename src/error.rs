@@ -1,7 +1,7 @@
 use crate::{
     lexer::{tokens::TokenKind, SrcLocation},
     parser::ast::{Expression, UnaryOps},
-    scope_builder::ast::DataType,
+    scope_builder::ast::{DataType, Variable},
 };
 
 #[derive(Debug, Clone)]
@@ -51,7 +51,8 @@ pub enum Error<'a> {
     },
     CannotAssignVariable {
         assignment: &'a Expression<'a>,
-        variable: &'a str,
+        variable: Variable<'a>,
+        name: &'a str
     },
     ArrayIndexNotANumber {
         index: &'a Expression<'a>,
@@ -86,7 +87,7 @@ pub enum Error<'a> {
         expected: usize,
         found: usize,
     },
-    ParamterTypeMismatch {
+    ParameterTypeMismatch {
         function: &'a str,
         expected: DataType<'a>,
         found: DataType<'a>,
@@ -99,5 +100,14 @@ pub enum Error<'a> {
     BreakNotInLoop {
     },
     ContinueNotInLoop {
+    },
+    SingleStatementMayNotBeDeclaration {
+        name: &'a str,
+    },
+    RedeclarationOfFunction{
+        name: &'a str
+    },
+    FunctionDefinitionNotSameAsDeclaration {
+        name: &'a str,
     }
 }
